@@ -1,0 +1,8 @@
+---
+name: docker-bosh-docker_bosh2
+templates:
+  docker-bosh-docker_bosh2.sh.erb: bin/docker-bosh-docker_bosh2_ctl
+packages:
+- docker_bosh2
+- common
+properties: {}

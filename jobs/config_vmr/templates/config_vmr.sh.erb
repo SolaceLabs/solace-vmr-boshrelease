@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -e
+
+cd /var/vcap/packages/config_vmr
+export PATH=`pwd`:$PATH
+
+tar zxf config_vmr.tgz
+
+echo "hosts = <%= properties.hosts %>"
+echo "broker_user = <%= properties.broker_user %>"
+echo "broker_password = <%= properties.broker_password %>"
+echo "broker_hostname = <%= properties.broker_hostname %>"
+
+# Installs perl modules required to run rs scripts, and jq so we
+# are able to easily parse JSON from this bash script
+sudo apt-get install -y libexpect-perl libterm-readkey-perl
+
+<% properties.hosts.each do |host| -%>
+./rs-config-vmr-for-maas <%= host %>:32  plan=shared
+<% end -%>

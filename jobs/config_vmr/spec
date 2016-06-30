@@ -1,0 +1,15 @@
+---
+name: config_vmr
+packages:
+- config_vmr
+templates:
+  config_vmr.sh.erb: bin/run
+properties:
+  hosts:
+    description: 'Name of package'
+  broker_user:
+    description: Username to access service broker's web services
+  broker_password:
+    description: Password to access service broker's web services
+  broker_hostname:
+    description: Hostname of the service broker's web services
