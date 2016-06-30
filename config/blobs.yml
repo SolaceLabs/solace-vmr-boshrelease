@@ -1,8 +1,4 @@
 ---
-docker_bosh2/soltr-7.2.0.492-vmr-enterprise-docker.tgz:
-  object_id: 57791d43-c3e8-4726-8e21-a996f22e0cd4
-  sha: 8c69c2740afe1914554c0670987901c2553c522c
-  size: 303869401
 config_vmr/config_vmr.tgz:
   object_id: 9ae1373f-7325-4982-bcca-fdb2666a3a27
   sha: bed0490a661ad884ca72b4dfb9949358d6b090ce

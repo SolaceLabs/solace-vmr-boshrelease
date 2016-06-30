@@ -1,4 +1,0 @@
-# abort script on any command that exit with a non zero value
-set -e
-
-cp docker_bosh2/soltr-7.2.0.492-vmr-enterprise-docker.tgz ${BOSH_INSTALL_TARGET}

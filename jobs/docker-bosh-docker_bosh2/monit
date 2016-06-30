@@ -1,5 +1,0 @@
-check process docker-bosh-docker_bosh2
-  with pidfile /var/vcap/sys/run/docker-bosh-docker_bosh2/docker-bosh-docker_bosh2.pid
-  start program "/var/vcap/jobs/docker-bosh-docker_bosh2/bin/docker-bosh-docker_bosh2_ctl start"
-  stop program "/var/vcap/jobs/docker-bosh-docker_bosh2/bin/docker-bosh-docker_bosh2_ctl stop"
-  group vcap

@@ -7,7 +7,8 @@ export PATH=`pwd`:$PATH
 
 tar zxf config_vmr.tgz
 
-echo "hosts = <%= properties.hosts %>"
+echo "dedicated_vmr_list = <%= properties.dedicated_vmr_list %>"
+echo "shared_vmr_list = <%= properties.shared_vmr_list %>"
 echo "broker_user = <%= properties.broker_user %>"
 echo "broker_password = <%= properties.broker_password %>"
 echo "broker_hostname = <%= properties.broker_hostname %>"
@@ -16,6 +17,13 @@ echo "broker_hostname = <%= properties.broker_hostname %>"
 # are able to easily parse JSON from this bash script
 sudo apt-get install -y libexpect-perl libterm-readkey-perl
 
-<% properties.hosts.each do |host| -%>
-./rs-config-vmr-for-maas <%= host %>:32  plan=shared
+<% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
+<% shared_uris = properties.shared_vmr_list.split(",") %>
+
+<% dedicated_uris.each do |vmr_uri| -%>
+./rs-config-vmr-for-maas <%= vmr_uri %> plan=dedicated
+<% end -%>
+
+<% shared_uris.each do |vmr_uri| -%>
+./rs-config-vmr-for-maas <%= vmr_uri %> plan=shared
 <% end -%>
