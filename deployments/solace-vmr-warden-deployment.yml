@@ -59,6 +59,7 @@ jobs:
 properties:
   dedicated_vmr_list: 'http://admin:admin@192.168.132.18:8080'
   shared_vmr_list: 'http://admin:admin@192.168.132.19:8080,http://admin:admin@192.168.132.23:8080'
+  starting_port: 7000
   broker_user: 'test_user-1212'
   broker_password: 'test_password-2323'
   broker_hostname: 'test_hostname-3434'
