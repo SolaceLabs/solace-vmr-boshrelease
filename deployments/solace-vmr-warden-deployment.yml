@@ -3,3 +3,60 @@ director_uuid: <%= `bosh status --uuid` %>
 
 releases:
 -name: solace-vmr
+ version: latest
+
+compilation:
+  workers: 1
+  network: test-network
+  reuse_compilation_vms: true
+  cloud_properties:
+    name: random
+
+update:
+  canaries: 0
+  canary_watch_time: 30000-240000
+  update_watch_time: 30000-600000
+  max_in_flight: 3
+
+resource_pools:
+- name: common-resource-pool
+  network: test-network
+  size: 1
+  stemcell:
+    name: bosh-warden-boshlite-ubuntu-trusty-go_agent
+    version: latest
+  cloud_properties:
+    name: random
+
+networks:
+- name: test-network
+  type: manual
+  subnets:
+  - range: 10.244.0.0/30
+    gateway: 10.244.0.1
+    static:
+      - 10.244.0.2
+    cloud_properties:
+      name: random
+  - range: 10.244.0.4/30
+    gateway: 10.244.0.5
+    static: []
+    cloud_properties:
+      name: random
+
+jobs:
+- name: webapp
+  template: webapp
+  instances: 1
+  resource_pool: common-resource-pool
+  networks:
+    - name: test-network
+      static_ips:
+        - 10.244.0.2
+
+properties:
+  dedicated_vmr_list: 'http://user1:pass1@192.168.23.23:8080,http://user2:pass2@vmr-2:8080'
+  shared_vmr_list: 'http://user3:pass3@192.168.23.25:8080,http://user4:pass4@vmr-4:8080'
+  broker_user: 'test_user-1212'
+  broker_password: 'test_password-2323'
+  broker_hostname: 'test_hostname-3434'
