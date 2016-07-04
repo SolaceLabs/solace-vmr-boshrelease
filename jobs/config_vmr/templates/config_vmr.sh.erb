@@ -2,10 +2,54 @@
 
 set -e
 
-cd /var/vcap/packages/config_vmr
-export PATH=`pwd`:$PATH
+function parse_url()
+{
+  regex="^(^(.*)://)?((([^:@]+):([^@]+)@)|([^@]+)@)?([^:]+)(:([^\/]+))?(/.*)?"
 
-tar zxf config_vmr.tgz
+  if [[ $url =~ $regex ]]
+  then
+    protocol=${BASH_REMATCH[2]}
+    if [ -z ${BASH_REMATCH[5]} ]
+    then
+      user=${BASH_REMATCH[7]}
+    else
+      user=${BASH_REMATCH[5]}
+    fi
+    password=${BASH_REMATCH[6]}
+    host=${BASH_REMATCH[8]}
+    port=${BASH_REMATCH[10]}
+  else
+    echo "This url was invalid: $url"
+    exit 1
+  fi
+
+  protocol=${protocol:-http}
+  user=${user:-admin}
+  password=${password:-admin}
+  port=${port:-8080}
+
+  if [ -z $host ]
+  then
+    echo "Error parsing $url.  Could not extract the host"
+    exit 1
+  fi
+
+  echo "VMR for this URI was parsed into:"
+  echo "  Protocol: ${protocol}"
+  echo "  User: ${user}"
+  echo "  Password: ${password}"
+  echo "  Host: ${host}"
+  echo "  Port: ${port}"
+}
+
+cd /var/vcap/packages/vmr_config_scripts
+
+tar zxf vmr_config_scripts.tgz
+cd vmr_config_scripts
+export PATH=`pwd`:$PATH
+export HOME=`pwd`
+
+chmod +x rs-config-vmr-for-maas
 
 echo "dedicated_vmr_list = <%= properties.dedicated_vmr_list %>"
 echo "shared_vmr_list = <%= properties.shared_vmr_list %>"
@@ -20,10 +64,16 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl
 <% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
 <% shared_uris = properties.shared_vmr_list.split(",") %>
 
-<% dedicated_uris.each do |vmr_uri| -%>
-./rs-config-vmr-for-maas <%= vmr_uri %> plan=dedicated
-<% end -%>
+<% dedicated_uris.each do |vmr_uri| %>
+url=<%= vmr_uri %>
+parse_url
 
-<% shared_uris.each do |vmr_uri| -%>
-./rs-config-vmr-for-maas <%= vmr_uri %> plan=shared
-<% end -%>
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=dedicated
+<% end %>
+
+<% shared_uris.each do |vmr_uri| %>
+url=<%= vmr_uri %>
+parse_url
+
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=shared
+<% end %>
