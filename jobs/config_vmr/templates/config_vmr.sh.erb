@@ -53,6 +53,7 @@ chmod +x rs-config-vmr-for-maas
 
 echo "dedicated_vmr_list = <%= properties.dedicated_vmr_list %>"
 echo "shared_vmr_list = <%= properties.shared_vmr_list %>"
+echo "starting_port = <%= properties.starting_port %>"
 echo "broker_user = <%= properties.broker_user %>"
 echo "broker_password = <%= properties.broker_password %>"
 echo "broker_hostname = <%= properties.broker_hostname %>"
@@ -63,17 +64,18 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl
 
 <% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
 <% shared_uris = properties.shared_vmr_list.split(",") %>
+<% starting_port = properties.starting_port %>
 
 <% dedicated_uris.each do |vmr_uri| %>
 url=<%= vmr_uri %>
 parse_url
 
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=dedicated
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=dedicated portSeed=$starting_port
 <% end %>
 
 <% shared_uris.each do |vmr_uri| %>
 url=<%= vmr_uri %>
 parse_url
 
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=shared
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=shared portSeed=$starting_port
 <% end %>
