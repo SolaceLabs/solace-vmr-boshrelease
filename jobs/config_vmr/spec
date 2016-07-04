@@ -1,15 +1,17 @@
 ---
 name: config_vmr
 packages:
-- config_vmr
+- vmr_config_scripts
 templates:
   config_vmr.sh.erb: bin/run
 properties:
-  hosts:
-    description: 'Name of package'
+  dedicated_vmr_list:
+    description: 'List of dedicated VMR SEMP URIs.'
+  shared_vmr_list:
+    description: 'List of shared VMR SEMP URIs.'
   broker_user:
-    description: Username to access service broker's web services
+    description: 'Username to access service broker''s web services.'
   broker_password:
-    description: Password to access service broker's web services
+    description: 'Password to access service broker''s web services.'
   broker_hostname:
-    description: Hostname of the service broker's web services
+    description: 'Hostname of the service broker''s web services.'

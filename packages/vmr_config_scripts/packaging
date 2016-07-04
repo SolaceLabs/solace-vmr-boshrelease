@@ -1,4 +1,4 @@
 # abort script on any command that exit with a non zero value
 set -e
 
-cp config_vmr/config_vmr.tgz ${BOSH_INSTALL_TARGET}
+cp vmr_config_scripts/vmr_config_scripts.tgz ${BOSH_INSTALL_TARGET}

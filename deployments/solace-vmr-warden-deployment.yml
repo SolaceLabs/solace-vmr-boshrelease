@@ -1,0 +1,5 @@
+name: solace-vmr-warden-deployment
+director_uuid: <%= `bosh status --uuid` %>
+
+releases:
+-name: solace-vmr

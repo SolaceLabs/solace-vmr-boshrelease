@@ -1,0 +1,7 @@
+---
+name: vmr_config_scripts
+
+dependencies: []
+
+files:
+- vmr_config_scripts/vmr_config_scripts.tgz

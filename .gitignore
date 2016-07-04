@@ -1,11 +1,11 @@
 config/dev.yml
 config/private.yml
-releases/*.tgz
-releases/**/*.tgz
+releases
 dev_releases
 .blobs
 blobs
 .dev_builds
+.final_builds
 .idea
 *.iml
 .DS_Store
