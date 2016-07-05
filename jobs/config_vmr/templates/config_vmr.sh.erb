@@ -66,12 +66,15 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl
 <% shared_uris = properties.shared_vmr_list.split(",") %>
 starting_port=<%= properties.starting_port %>
 
+# Hardcoded for First release.
+ssh_port=22
+
 <% dedicated_uris.each do |vmr_uri| %>
 url=<%= vmr_uri %>
 parse_url
 
 echo "Configuring $url as a Dedicated VMR"
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=dedicated portSeed=$starting_port
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host:$ssh_port plan=dedicated portSeed=$starting_port
 <% end %>
 
 <% shared_uris.each do |vmr_uri| %>
@@ -79,5 +82,5 @@ url=<%= vmr_uri %>
 parse_url
 
 echo "Configuring $url as a Shared VMR"
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=shared portSeed=$starting_port
+./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host:$ssh_port plan=shared portSeed=$starting_port
 <% end %>
