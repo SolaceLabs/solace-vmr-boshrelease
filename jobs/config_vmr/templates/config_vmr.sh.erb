@@ -70,6 +70,7 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl
 url=<%= vmr_uri %>
 parse_url
 
+echo "Configuring $url as a Dedicated VMR"
 ./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=dedicated portSeed=$starting_port
 <% end %>
 
@@ -77,5 +78,6 @@ parse_url
 url=<%= vmr_uri %>
 parse_url
 
+echo "Configuring $url as a Shared VMR"
 ./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host plan=shared portSeed=$starting_port
 <% end %>
