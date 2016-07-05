@@ -4,6 +4,12 @@ set -e
 
 function parse_url()
 {
+# Regex Groups are as follow:
+#   protocol : 2
+#   user : 5 or 7 (7 means no password)
+#   password : 6
+#   host: 8
+#   port: 10
   regex="^(^(.*)://)?((([^:@]+):([^@]+)@)|([^@]+)@)?([^:]+)(:([^\/]+))?(/.*)?"
 
   if [[ $url =~ $regex ]]
@@ -50,6 +56,8 @@ export PATH=`pwd`:$PATH
 export HOME=`pwd`
 
 chmod +x rs-config-vmr-for-maas
+chown root:root PCF-PoC.pem
+chmod 600 PCF-PoC.pem
 
 echo "dedicated_vmr_list = <%= properties.dedicated_vmr_list %>"
 echo "shared_vmr_list = <%= properties.shared_vmr_list %>"
@@ -60,7 +68,7 @@ echo "broker_hostname = <%= properties.broker_hostname %>"
 
 # Installs perl modules required to run rs scripts, and jq so we
 # are able to easily parse JSON from this bash script
-sudo apt-get install -y libexpect-perl libterm-readkey-perl
+sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass
 
 <% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
 <% shared_uris = properties.shared_vmr_list.split(",") %>
@@ -74,7 +82,17 @@ url=<%= vmr_uri %>
 parse_url
 
 echo "Configuring $url as a Dedicated VMR"
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host:$ssh_port plan=dedicated portSeed=$starting_port
+
+#Generate a random password for the file user of this VMR
+fileuser_pwd=`openssl rand -base64 12`
+
+echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
+
+./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=dedicated portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
+
+echo "Uploading server certificate to $url, and installing certificate on Message Router"
+sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 <% end %>
 
 <% shared_uris.each do |vmr_uri| %>
@@ -82,5 +100,15 @@ url=<%= vmr_uri %>
 parse_url
 
 echo "Configuring $url as a Shared VMR"
-./rs-config-vmr-for-maas --cli-username $user --cli-password $password $host:$ssh_port plan=shared portSeed=$starting_port
+
+#Generate a random password for the file user of this VMR
+fileuser_pwd=`openssl rand -base64 12`
+
+echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
+
+./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=shared portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
+
+echo "Uploading server certificate to $url, and installing certificate on Message Router"
+sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 <% end %>
