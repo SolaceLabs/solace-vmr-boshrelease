@@ -64,7 +64,7 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl
 
 <% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
 <% shared_uris = properties.shared_vmr_list.split(",") %>
-<% starting_port = properties.starting_port %>
+starting_port=<% properties.starting_port %>
 
 <% dedicated_uris.each do |vmr_uri| %>
 url=<%= vmr_uri %>
