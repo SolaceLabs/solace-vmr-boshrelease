@@ -73,9 +73,15 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass
 <% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
 <% shared_uris = properties.shared_vmr_list.split(",") %>
 starting_port=<%= properties.starting_port %>
+broker_user=<%= properties.broker_user %>
+broker_password=<%= properties.broker_password %>
+broker_hostname=<%= properties.broker_hostname %>
 
 # Hardcoded for First release.
 ssh_port=22
+
+# Reset the service broker's database
+curl -X PUT $broker_user:$broker_password@$broker_hostname/solace/reset/repositories -H "Content-Type: application/json;charset=UTF-8"
 
 <% dedicated_uris.each do |vmr_uri| %>
 url=<%= vmr_uri %>
@@ -93,6 +99,9 @@ echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
 echo "Uploading server certificate to $url, and installing certificate on Message Router"
 sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
 ./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+
+curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
+
 <% end %>
 
 <% shared_uris.each do |vmr_uri| %>
@@ -111,4 +120,7 @@ echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
 echo "Uploading server certificate to $url, and installing certificate on Message Router"
 sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
 ./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+
+curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
+
 <% end %>

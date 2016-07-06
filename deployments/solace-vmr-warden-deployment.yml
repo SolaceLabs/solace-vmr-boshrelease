@@ -62,4 +62,4 @@ properties:
   starting_port: 7000
   broker_user: 'test_user-1212'
   broker_password: 'test_password-2323'
-  broker_hostname: 'test_hostname-3434'
+  broker_hostname: '192.168.50.1'
