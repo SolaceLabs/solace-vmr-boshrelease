@@ -81,6 +81,30 @@ broker_hostname=<%= properties.broker_hostname %>
 # Hardcoded for First release.
 ssh_port=22
 
+timeout=600
+
+echo "Waiting for Solace Service Broker to be available..."
+# Wait until Service Broker is ready
+result=0
+while [ $result -eq 0 ]
+do
+  res=`curl -sL -X GET -w "%{http_code}\\n" "$broker_user:$broker_password@$broker_hostname/solace/status" -o body.txt`
+  if [ $res -eq "200" ]; then
+    echo "Service Broker is UP.  Initial State: "
+    cat body.txt
+    result=1
+  else
+    timeout=$((timeout-10))
+    if [ $timeout -lt 0 ]; then
+      echo "FATAL: Timed out while waiting for Service Broker to start."
+      exit 1
+    else
+      echo "Service Broker still DOWN, HTTP Response Code: $res.  Will retry in 10 seconds."
+    fi
+    sleep 10
+  fi
+done
+
 # Reset the service broker's database
 curl -X PUT $broker_user:$broker_password@$broker_hostname/solace/reset/repositories -H "Content-Type: application/json;charset=UTF-8"
 
