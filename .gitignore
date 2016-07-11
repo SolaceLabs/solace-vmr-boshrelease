@@ -6,6 +6,7 @@ dev_releases
 blobs
 .dev_builds
 .final_builds
+!releases/solace-vmr/index.yml
 .idea
 *.iml
 .DS_Store
