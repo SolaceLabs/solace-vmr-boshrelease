@@ -38,4 +38,6 @@ builds:
     version: '18'
   b976ac40-d25e-4812-8699-021e0ffad31b:
     version: '19'
+  ca04e2c5-350e-4afb-8527-4ba502e362a6:
+    version: '20'
 format-version: '2'
