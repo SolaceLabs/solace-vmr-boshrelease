@@ -86,4 +86,6 @@ builds:
     version: '42'
   1f78f88d-a9fa-4f0b-a338-337e31037f63:
     version: '43'
+  8c6bdc82-2cc3-43c4-82f9-8f4abd105adb:
+    version: '44'
 format-version: '2'
