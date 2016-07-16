@@ -118,4 +118,6 @@ builds:
     version: '58'
   421ea97b-b785-4ea8-95fb-2f365371b0a7:
     version: '59'
+  f82d3bd6-7cd4-457c-ac54-61da8b238188:
+    version: '60'
 format-version: '2'
