@@ -1,0 +1,5 @@
+check process prepare_vmr
+  with pidfile /var/vcap/sys/run/prepare_vmr/prepare_vmr.pid
+  start program "/var/vcap/jobs/prepare_vmr/bin/monit_debugger install_ctl '/var/vcap/jobs/prepare_vmr/bin/install_ctl start'"
+  stop program "/var/vcap/jobs/prepare_vmr/bin/monit_debugger install_ctl '/var/vcap/jobs/prepare_vmr/bin/install_ctl stop'"
+  group vcap

@@ -2,6 +2,8 @@ name: solace-vmr-warden-deployment
 director_uuid: <%= `bosh status --uuid` %>
 
 releases:
+- name: docker
+  version: latest
 - name: solace-vmr
   version: latest
 
@@ -32,19 +34,32 @@ networks:
 - name: test-network
   type: manual
   subnets:
-  - range: 10.244.0.0/30
+  - range: 10.244.0.0/28
     gateway: 10.244.0.1
     static:
       - 10.244.0.2
+      - 10.244.0.3
     cloud_properties:
       name: random
-  - range: 10.244.0.4/30
-    gateway: 10.244.0.5
+  - range: 10.244.0.16/28
+    gateway: 10.244.0.17
     static: []
     cloud_properties:
       name: random
 
 jobs:
+- name: dedicated-vmr-job
+  templates:
+  -  {name: docker, release: docker}
+  -  {name: prepare_vmr, release: solace-vmr}
+  -  {name: containers, release: docker}
+  instances: 1
+  persistent_disk: 20480
+  resource_pool: common-resource-pool
+  networks:
+  - name: test-network
+    static_ips:
+      - 10.244.0.3
 - name: vmr-config-job
   templates:
   -  {name: config_vmr, release: solace-vmr}
@@ -52,14 +67,46 @@ jobs:
   instances: 1
   resource_pool: common-resource-pool
   networks:
-    - name: test-network
-      static_ips:
-        - 10.244.0.2
+  - name: test-network
+    static_ips:
+      - 10.244.0.2
 
 properties:
-  dedicated_vmr_list: 'http://admin:u4EANiNxwS6C@54.87.172.94:8080'
-  shared_vmr_list: 'http://admin:u4EANiNxwS6C@54.164.144.136:8080,http://admin:u4EANiNxwS6C@54.173.150.66:8080'
   starting_port: 7000
   broker_user: 'test_user-1212'
   broker_password: 'test_password-2323'
   broker_hostname: '192.168.50.1'
+  admin_password: 'u4EANiNxwS6C'
+  support_password: 'u4EANiNxwS6C'
+  ssh_port: 32
+  containers:
+    - name: solace
+      image: solace-bosh
+      dockerfile: |
+        FROM solace-app:latest
+
+        RUN \
+          cd /usr/sbin && \
+          rm -f hwclock && \
+          echo '#!/bin/bash' > hwclock && \
+          chmod +x hwclock && \
+          cp /etc/passwd /etc/passwd.tmp && \
+          sed 's/cli/cli2/g' /etc/passwd.tmp > /etc/passwd && \
+          echo "#!/bin/bash" > /usr/sw/loads/currentload/bin/cli2 && \
+          echo "exec /usr/sw/loads/currentload/bin/cli -A" >> /usr/sw/loads/currentload/bin/cli2 && \
+          chmod +x /usr/sw/loads/currentload/bin/cli2 && \
+          echo 'Port 32' > /etc/ssh/sshd_config && \
+          echo 'u4EANiNxwS6C' | passwd --stdin admin && \
+          echo 'u4EANiNxwS6C' | passwd --stdin support
+      env_vars:
+       - "NODE_TYPE=MESSAGE_ROUTER_NODE_TYPE"
+      net: host
+      privileged: true
+      uts: host
+      volumes:
+      - /var/vcap/store/prepare_vmr/volumes/jail:/usr/sw/jail
+      - /var/vcap/store/prepare_vmr/volumes/var:/usr/sw/var
+      - /var/vcap/store/prepare_vmr/volumes/internalSpool:/usr/sw/internalSpool
+      - /var/vcap/store/prepare_vmr/volumes/adbBackup:/usr/sw/adb
+      - /var/vcap/store/prepare_vmr/volumes/adb:/usr/sw/internalSpool/softAdb
+      - /dev/shm:/dev/shm
