@@ -210,4 +210,6 @@ builds:
     version: '104'
   f69b7519-a0e4-4302-8a4b-e08ce6c78154:
     version: '105'
+  f7fd23e3-4233-4e43-a4fe-c47967ff528c:
+    version: '106'
 format-version: '2'
