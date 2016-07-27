@@ -1,35 +1,5 @@
 ---
 builds:
-  79648755-3aa5-4aca-bb89-1688baf0f6a7:
+  93976512-8d8c-40f2-936c-08df6dfd03bd:
     version: '1'
-  821e6297-7310-4b03-b9f8-a84a19f43311:
-    version: '2'
-  9f7f22ab-ef37-4ff9-a2e5-90429acb7ac7:
-    version: '3'
-  9a99ad31-c452-4d0e-97b5-816d0304d0ec:
-    version: '4'
-  420f5b7d-b050-4f2e-9c66-45ca5b4ad4ab:
-    version: '5'
-  15b78e90-44b1-4652-af73-a5776d1afd8d:
-    version: '6'
-  81957a55-f5ab-4b68-ab46-cf387104e258:
-    version: '7'
-  a1c8f8ab-d4cc-4bb4-aa15-71f716790000:
-    version: '8'
-  10cf87f8-467b-477a-af01-2451e371feb1:
-    version: '9'
-  704a2825-4cc6-4e81-8e70-1aca0e315855:
-    version: '10'
-  10058023-03ae-415c-bdc9-88b8be988468:
-    version: '11'
-  beb0fb1d-f2cc-4bde-9a22-f64977c13e64:
-    version: '12'
-  9bb55c15-5676-45a7-b967-afe7fdff5c01:
-    version: '13'
-  4e5ef56a-faca-4870-83ee-d0c26df79426:
-    version: '14'
-  e8431860-39fc-43d1-988c-fc4e25def355:
-    version: '15'
-  d41fd41e-fd31-43c4-bbb6-7da0740fec4f:
-    version: '16'
 format-version: '2'
