@@ -120,9 +120,10 @@ echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
 
 ./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=dedicated portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
 
-echo "Uploading server certificate to $url, and installing certificate on Message Router"
-sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+# TLS not supported for 0.1.x release
+#echo "Uploading server certificate to $url, and installing certificate on Message Router"
+#sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+#./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 
 curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
 
@@ -141,9 +142,10 @@ echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
 
 ./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=shared portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
 
-echo "Uploading server certificate to $url, and installing certificate on Message Router"
-sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+# TLS not supported for 0.1.x release
+#echo "Uploading server certificate to $url, and installing certificate on Message Router"
+#sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+#./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 
 curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
 

@@ -86,11 +86,12 @@ properties:
         FROM solace-app:latest
 
         RUN \
-          echo 'Port 32' > /etc/ssh/sshd_config && \
           echo 'u4EANiNxwS6C' | passwd --stdin admin && \
           echo 'u4EANiNxwS6C' | passwd --stdin support
       env_vars:
-       - "NODE_TYPE=MESSAGE_ROUTER_NODE_TYPE"
+       - "NODE_TYPE=MESSAGE_ROUTING_NODE"
+       - "SSHD_PORT=2222"
+       - "ALWAYS_DIE_ON_FAILURE=1"
       net: host
       privileged: true
       uts: host
