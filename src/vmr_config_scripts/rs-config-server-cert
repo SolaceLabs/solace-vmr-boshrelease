@@ -1,0 +1,16 @@
+#!/usr/bin/env run-router-script
+#
+#  Configure the Solace Router's server certificate
+#
+<%args>
+certificate       => "server.pem" # The certificate file to set as the server certificate
+</%args>
+
+<%script type = "cli">
+
+home
+enable
+configure
+
+ssl
+server-certificate <% $certificate %>

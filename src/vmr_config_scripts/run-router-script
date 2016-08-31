@@ -1,0 +1,3328 @@
+#!/usr/bin/perl
+#
+# Script: run-router-script
+#
+
+# This script is an interpreter for router CLI, soldebug and linux command shell scripts.  
+# It parses and executes these scripts on the specified router.  The scripts are written in 
+# a templating language very similar to the perl module Mason that is used to embed perl into HTML.  
+# The scripts are comprised of bare text of the form that would be normally inputted into the
+# CLI/soldebug along with bits of perl that are embedded to give the writer control over the flow
+# of the script.
+# 
+# The script language is fairly simple in its method of passing in arguments and embedding
+# perl.  Here is a brief description.  Search for "perl Mason" on Google for more info
+# on Mason.
+# 
+# CONTROLLING TYPE OF SCRIPT:
+# 
+# To indicate within the script where the commands should go, use the directive:
+# <%script type="<type>"/>.  Valid types are "cli", "soldbug" and "linux".  All three
+# of these types can be placed in the same script.  Changing back and forth between
+# types is perfectly acceptable.  Three independent expect sessions are maintained,
+# so the state of one session will not be lost when changing the script type.
+# The script type defaults to "cli" at the beginning of each script (including
+# imported scripts).
+# E.g.,
+# 
+#   <%script type="cli"/>
+#   enable
+#   show dataplane stats
+#   <%script type="soldebug"/>
+#   :conn 3
+#   help
+#   <%script type="linux"/>
+#   uname -r
+# 
+# Additionally, the %script element can take the attribute "router-num" to change the 
+# which of the routers that were specified on the command line should be connected to
+# when running this portion of the script.  Note that the number is zero-based 
+# (router-num="0" is the first router).  Note also that if a number that is greater
+# than the number of provided routers is given, the script will stop.  If you want
+# to check for the correct number of routers earlier in the script, the $rrsNumRouters
+# variable holds the number of routers that were parsed from the command line.
+# 
+# E.g.,
+# 
+#   <%script type="cli" router-num="0"/>
+#   enable
+#   show dataplane stats
+#   <%script type="cli" router-num="1"/>
+#   enable
+#   show dataplane stats
+#   <%script type="cli" router-num="$perlVariable"/>
+#   enable
+#   show dataplane stats
+# 
+# 
+# SIMPLEST FORM:
+# 
+# In its simplest form, a router-script (RS) is just a set of commands, just like
+# the kind of script that is sourced directly into the CLI.  E.g.,
+# 
+#   enable
+#   configure terminal
+#   subscriber s1
+#   exit
+#   exit
+#   exit
+# 
+# EMBEDDING LINES OF PERL: 
+# 
+# Perl can be embedded at the line level by putting a % in the first column of the line.
+# E.g.,
+# 
+#   enable
+#   configure terminal
+#   % for my $i (1 .. 10) {
+#   subscriber s1
+#   exit
+#   % }
+#   exit
+#   exit
+# 
+# The script above will configure the subscriber s1 10 times.  Not very useful.  How
+# many s1s do we really need?
+# 
+# EMBEDDING MANY LINES OF PERL:
+# 
+# If you have a bunch of lines of perl, it is more convenient to surround it with the
+# markup:  <%perl> ... </%perl>
+# E.g.,
+# 
+#   enable
+#   configure terminal
+#   <%perl>
+#   my $i;
+#   for $i (1 .. 10) {
+#   </%perl>
+#   subscriber s<% $i %>
+#   exit
+#   % }
+#   exit
+#   exit
+# 
+# It is exactly the same as putting a % at the beginning of each of those lines.
+# 
+# EMBEDDING PERL VALUES:
+# 
+# A perl value can be embedded directly into a line by surrounding it with <% ... %> markup.
+# The code within the brackets is treated as if it is in a print( ... ) block.
+# E.g.,
+# 
+#   enable
+#   configure terminal
+#   % for my $i (1 .. 10) {
+#   subscriber s<% $i %>
+#   exit
+#   % }
+#   exit
+#   exit
+# 
+# This script will configure subs s1 to s10.  This is a bit more useful.  But still it 
+# is hard-coded.  I would need a separate script for each sub name and number of subs that
+# I want.
+# 
+# Or if you need the subscriber name with leading zeros:
+# 
+#   subscriber s<% sprintf("%04d",$i) %>
+# 
+# ADDING ARGUMENTS TO THE SCRIPTS:
+# 
+# It is possible to pass arguments into the scripts in the same way that Mason supports them.
+# They should be placed, one to a line, within a <%args>  </%args> markers.  Each parameter
+# can have a default value and they can have a comment following them.  The syntax is:
+# <ArgName> [=> <DefaultArgValue>] [# <Comment>]
+# 
+# E.g.,
+# 
+#   <%args>
+#   prefix => rtrperf  # Comment
+#   num_subs => 10
+#   </%args>
+#   enable
+#   configure terminal
+#   % for my $i (1 .. $num_subs) {
+#   subscriber <% $prefix . $i %>
+#   exit
+#   % }
+#   exit
+#   exit
+# 
+# If you don't specify the the default value for the argument, the user will have to define
+# it on the command line or they will be prompted for it.  If you put a comment/description
+# after the parameter, then the prompt will show that comment.
+# 
+# The arguments to the script should be specified on the command line in pretty much 
+# what ever format you can imagine.  Some examples:  
+#   
+#   arg1=argVal1 arg2=argVal2 
+#   arg1:argVal1,arg2:argVal2 
+#   arg1 argVal1 arg2 argVal2 
+# 
+# Again, if you don't specify a required argument, you will be prompted for it.  
+# 
+# IMPORTING OTHER SCRIPTS:
+# 
+# To make this very flexible and reusable, the language does support importing of other
+# scripts into the current script.  You do this with the <& ... &> markup in the same 
+# way that Mason does it.  Inside the brackets, you specify the script name and the
+# parameters for that script.  All parameters that don't have default values must be
+# specified.  The syntax is:  <&  <script-file> [, <argName1> => <argVal1>, ...] &>.
+# E.g.,
+# 
+#   <%args>
+#   prefix => rtrperf  # Comment
+#   num_subs => 10
+#   </%args>
+#   enable
+#   configure terminal
+#   % for my $i (1 .. $num_subs) {
+#   <& scripts/add-one-sub, sub_name => ($prefix . sprintf("%04d",$i)) &>
+#   exit
+#   % }
+#   exit
+#   exit
+# 
+# Now you can factor the creation of a subscriber out into another script so that if
+# things change in the CLI or if you want to configure more things, you can do
+# that in one place and not have to change lots of scripts.
+# 
+# One thing to note is that the imported script will be at the current level of the
+# CLI.  In this case, enable and configure terminal have already been entered into
+# the CLI so in this case the imported script should be written with that in mind.
+#
+# HANDLING OTHER PROMPTS
+#
+# There are times when running a command causes a prompt to show up that needs
+# to be responded to. To handle this it is possible to add custom prompt handlers
+# that will respond automatically to a prompt. To do this, add the following into
+# the script before executing a command that will generate a prompt. It is acceptable
+# to add multiple of these if there are a range of prompts that might be encountered.
+#
+#   <%if-prompt "<prompt-regexp>">response</%if-prompt>
+#
+# E.g:
+#
+#   <%script type='linux'>
+#   <%if-prompt "gimme .*: " >my-text</%if-prompt>
+#   perl -e 'print "gimme input: "; $ans = <STDIN>; print "Got $ans\n";'
+#
+# The example above will prompt the user with "gimme input: " and the
+# script will automatically send back 'my-text'. 
+#
+# SHEBANG:
+# 
+# One of the best things about this script is that it can be used as an interpreter
+# specified via a shebang (#!).  You can't specify it directly due to nested shebangs
+# not working, but you can do it this way:
+# 
+# #!/usr/bin/env run-router-script
+# 
+# Now you can just put that at the top of your script and just run it directly, rather
+# than having to pass it into this script.  One small strangeness about that is that
+# if you specify --help, you will get the help from this script.  
+# 
+# GLOBAL VARIABLES:
+# 
+# The script framework provides a few global variables to the script that can be
+# used in any of the perl portions of the script.
+# 
+#  $rrsLastResult    - Will always hold the result of the previous command.
+#  $rrsRouterName    - Holds the name of the router we are talking to
+#  $rssRounterIp     - Holds the IP of the router we are talking to
+#  $rssRouterNetNum  - Holds the subnet number (i.e. 128 or 129) of the router
+#  $rssRouterNum     - Holds the last octet of the IP address
+#  $rssRouterSelect  - Holds the current selected router from last <%script router-num="<select>">
+# 
+#  @rrsRouterNames   - Array of router names
+#  @rssRounterIps    - Array of router IPs
+#  @rssRouterNetNums - Array of router NetNums
+#  @rssRouterNums    - Array of router nums
+#  %rssRouterInfo    - Hash of the following keys: Name, Ip, NetNum, Num indexed by name
+# 
+# FUNCTIONS:
+# 
+# There are some functions that the perl part of you script can call
+# 
+#  RrsShowOutput(bool)         - If val is 0, don't display communication
+#  RrsAddRouter(name)          - Add a router to the list of routers (e.g. RrsAddRouter("lab-128-88");)
+#  RrsSendCmd(cmd, scriptType) - Send a command to the router
+#  RrsSetTimeout(seconds)      - Change time before timeout waiting for prompt (see also --timeout)
+#  Error(message)              - Print error message to the user 
+#  Fatal(message)              - Print message and quit
+# 
+# Of course, you can call all normal perl functions and even define some in your
+# script if you like.
+# 
+# 
+# 
+# 
+#
+# The framework of the script was autogenerated by version 609 of
+# ./super-script.
+#
+#############################################################################
+
+
+use strict;
+use warnings;
+use Data::Dumper;
+use Getopt::Long;
+use Pod::Usage;
+
+use constant BOLD    => "\e[1m";
+use constant NORMAL  => "\e[0m";
+
+my $BOLD   = BOLD;
+my $NORMAL = NORMAL;
+
+# Main hash - all the argument values will be in here after parsing
+my %args = (
+            prompt => '0',
+            script_name => undef,
+            router_names => 'localhost',
+            cli_username => 'admin',
+            cli_password => 'admin',
+            cli_authkey => undef,
+            print => '0',
+            cli_script_args => [''],
+            debug => undef,
+            gen_completion => undef,
+            help => undef,
+            interactive => undef,
+            quiet => undef,
+            serial => undef,
+            timeout => 10,
+            verbose => undef,
+);
+
+# Arrays to hold the parsed and unparsed args
+my @remainingArgs;
+my @allArgs;
+my @parsedArgs;
+my %parsedArgs;
+
+my $revision = '$Rev: 6728 $'; 
+$revision =~ s/^.*?(\d+).*/$1/;
+ 
+ParseArgs();
+
+use Term::ReadKey;
+use English;
+use Expect;
+
+
+# Structure to define the different connections
+my %connInfoBase = (cli => {ConnectFunc => \&CliConnect,
+                            ExpectPrompt => [['-re', "[0-9\)a-zA-Z]#[ \x0d]+\$"],
+                                             ['-re', "[0-9a-zA-Z]> \$"],
+                                             "(y/n)?"],
+                            },
+                    soldebug => {ConnectFunc => \&SoldebugConnect,
+                                 ExpectPrompt => [['-re', "\\-> \$"]],
+                                 },
+                    linux => {ConnectFunc => \&LinuxConnect,
+                              ExpectPrompt => ["<RRS>: ",
+                                               ['-re', "]# \$"],
+                                               ['-re', "assword:\\s*"],
+                                               ['-re', "connecting \\(yes/no\\)\\?\\s*"]],
+                              },
+                   );
+ 
+my @connInfo;
+
+# Holds a hash of lists of additional prompt strings that might be 
+# encountered
+my %extraPrompts;
+
+# Holds the current type of connection - starts with CLI
+my $currConn = "cli";
+
+# Controls the per command expect timeout
+my $expectTimeout = $args{timeout};
+
+# Controls whether expect communications are echoed to stdout
+my $showOutput = 1;
+my @rrsShowOutputStack;
+
+# The expect object - we will communicate through this with the router
+my $expect;
+
+# The global variables that are available to the CLI script
+my $rrsRouterName;
+my $rrsRouterIp;
+my $rrsRouterPort;
+my $rrsRouterNetNum;
+my $rrsRouterNum;
+my $rrsNumRouters;
+my $rrsScriptName;
+
+my @rrsRouterNames;
+my @rrsRouterIps;
+my @rrsRouterPorts;
+my @rrsRouterNetNums;
+my @rrsRouterNums;
+my %rrsRouterInfo;
+
+# The path to the current script - it will be prepended to imported scripts
+my $scriptPath;
+
+# Initial login timeout (s)
+my $loginTimeout = 20;
+
+##############################################################################
+## Main - Starting point for the script
+##
+##############################################################################
+sub Main {
+
+  ($scriptPath) = ($args{script_name} =~ /(.*?)\/[^\/]+$/);
+
+  if (!defined $scriptPath || $scriptPath eq "") {
+    $scriptPath = ".";
+  }
+
+  # Extract all router names
+  @rrsRouterNames = split(/[,;]/, $args{router_names});
+  $rrsNumRouters = scalar(@rrsRouterNames);
+
+  # Resolve the names to IPs, etc.
+  RrsFillRouterInfo();
+
+  # Fill in some default arguments from the script's conf file
+  LearnArgsFromConfFile();
+
+  # Extract all the CLI args from the command line
+  my $cliArgs = ParseCliArgs();
+
+  # Read in and parse the CLI script
+  my $multiRouter = 0;
+  my $perlScript = ParseCliScript($args{script_name}, 0, $cliArgs, \$multiRouter);
+
+  RunCliScript($perlScript, $multiRouter);
+
+}
+
+
+##############################################################################
+## ParseCliArgs - This will extract the CLI arguments from the command line. 
+##
+##############################################################################
+sub ParseCliArgs {
+
+  # We will try to be fairly relaxed in the arg forms we support here.
+  # The following should all give the params: A => 1, B => 2
+  #
+  # A 1 B 1    
+  # A:1 B:1    
+  # A=1 B=1    
+   
+  my @cliArgs;
+  my %cliArgs;
+  foreach my $arg (@{$args{cli_script_args}}) {
+    my (@subArgs) = ($arg =~ /(.*?)(?:=>|[;:=])(.*)/);
+    push @cliArgs, @subArgs;
+  }
+  
+  while (@cliArgs) {
+    my $name = shift @cliArgs;
+    my $val = shift @cliArgs;
+    if ($val !~ /^['"]/) {
+      $val = "'$val'";
+    }
+    $name =~ s/^-*//;
+    if (defined $val) {
+      $cliArgs{$name} = $val;
+    }
+  }
+  
+  # print Dumper \%cliArgs;
+  return \%cliArgs;
+
+} # ParseCliArgs #
+
+
+##############################################################################
+## LearnArgsFromConfFile - This will open the appropriate .conf file to get
+##                       additional arguments
+##
+##############################################################################
+sub LearnArgsFromConfFile {
+  my $homeDir = $ENV{HOME};
+  return if !(-e $homeDir);
+  return if !(-e "$homeDir/.scripts");
+
+  my $conf = "$homeDir/.scripts/$args{script_name}.conf";
+  return if !(-e $conf);
+
+  # The file exists - suck it in and parse out the goodness
+  open(IN, $conf) || return;
+  my @data = <IN>;
+  close(IN);
+
+  my $section = "";
+  my $quiet = 0;
+  foreach my $line (@data) {
+    if ($line =~ /^\s*\[([^\]]+)\]/) {
+      $section = $1;
+    }
+    elsif ($section =~ /^(args)|(command-line-args)|(cmd-line-args)|(cmdline-args)/i || $section eq "") {
+      if ($line =~ /^\s*([\w\-\_\d]+)\s*=\s*([^\n\s\#\;]+)/) {
+        my $arg = $1;
+        my $val = $2;
+        print "Defaulting argument $1 to $2 from .conf file\n" unless $quiet;
+        # Put the arg at the head of the arg list
+        unshift(@{$args{cli_script_args}}, "$arg=$val");
+      }
+    }
+    elsif ($section =~ /^global-?settings/i) {
+      if ($line =~ /^\s*([\w\-\_\d]+)\s*=\s*([^\n\s\#\;]+)/) {
+        my $arg = $1;
+        my $val = $2;
+        if (lc($arg) eq "quiet") {
+          $quiet = $val;
+        }
+      }
+    }
+  }
+  
+} # LearnArgsFromConfFile
+
+
+my %funcNames;
+
+
+##############################################################################
+## ParseScriptHelp - 
+##
+## This will do a simpler parse of the script to extract the help
+## information. 
+##
+##############################################################################
+sub ParseScriptHelp {
+  my ($scriptName) = @_;
+
+  my $data;
+  my %scriptInfo;
+
+  if (-r $scriptName) {
+    # Load script from disk
+    Debug("Using script: $scriptName");
+    open (IN, $scriptName);
+    local $RS = undef;
+    $data = <IN>;
+  }
+  elsif (-r "$ENV{HOME}/.cli-scripts/$scriptName") {
+    Debug("Using script: $ENV{HOME}/.cli-scripts/$scriptName");
+    open (IN, "$ENV{HOME}/.cli-scripts/$scriptName");
+    local $RS = undef;
+    $data = <IN>;
+  }
+  else {
+    Fatal("Can't locate script: $scriptName");
+  }
+
+  my %sections;
+
+  # First, grab any comments at the top of the file as a description
+  my $comments = "";
+  my $insertNewLine = 0;
+  foreach my $line (split(/\n/, $data)) {
+    if ($line !~ /(^\s*$)|(^\s*#)/) {
+      last;
+    }
+    if ($line !~ /^\s*#\!/ &&
+        $line !~ /^\s*$/) {
+      $line =~ s/^\s*#(.*)/$1/;
+      if ($line =~ /^\s*$/ && $comments ne "") {
+        $insertNewLine = 1;
+      }
+      else {
+        if ($insertNewLine) {
+          $comments .= "\n";
+          $insertNewLine = 0;
+        }
+        $comments .= "$line \n";
+      }
+    }
+  }
+
+  $scriptInfo{Comments} = $comments;
+
+  # Grab the args
+  if ($data =~ s/(?:<%\s*args\s*?>((.|\n)*?)<\/%\s*args\s*>\s*\n?)//g) {
+    $sections{args} = $1;
+  }
+  else {
+    $sections{args} = "";
+  }
+
+  my $order = 0;
+  if ($sections{args}) {
+    foreach my $arg (split(/\n/, $sections{args})) {
+      # print "ARG: $arg\n";
+      if ($arg =~ /^(\s|\n)*$/) {
+        next;
+      }
+      my ($name, $default, $desc) = ($arg =~ /\s*(?:my\s*)?\s*([\$]?[a-zA-Z0-9_]+)(?:\s*=>?\s*([^;#]*))?\s*;?(?:\s*#\s*(.*))?/);
+      if (defined($default)) {
+        $default =~ s/\s*$//;
+        if ($default ne "" && $default !~ /^['"]/) {
+          $default = "'$default'";
+        }
+      }
+      # print "$name, $default, $desc\n";
+      $name =~ s/\$//;
+      $scriptInfo{Args}{$name}{Default}     = $default;
+      $scriptInfo{Args}{$name}{Description} = $desc;
+      $scriptInfo{Args}{$name}{Order}       = $order++;
+
+    }
+  }
+
+  return %scriptInfo;
+
+} # ParseScriptHelp #
+
+
+
+##############################################################################
+## ParseCliScript - 
+##
+## This will read in and parse the CLI script, separating the perl parts from
+## the text parts. 
+##
+##############################################################################
+sub ParseCliScript {
+  my ($scriptName, $subScript, $cliArgs, $multiRouter_p) = @_;
+
+  my %allowedSections = (args => 1,
+                         perl => 1,
+                         init => 1);
+
+  my $connType;
+
+  my $data;
+  my $perlFuncs = "";
+
+  if (-r $scriptName) {
+    # Load script from disk
+    Debug("Using script: $scriptName");
+    open (IN, $scriptName);
+    local $RS = undef;
+    $data = <IN>;
+  }
+  elsif (-r "$ENV{HOME}/.cli-scripts/$scriptName") {
+    Debug("Using script: $ENV{HOME}/.cli-scripts/$scriptName");
+    open (IN, "$ENV{HOME}/.cli-scripts/$scriptName");
+    local $RS = undef;
+    $data = <IN>;
+  }
+  else {
+    Fatal("Can't locate script: $scriptName");
+  }
+
+  # pop a newline on the end of the data for good measure
+  $data .= "\n";
+
+  my %sections;
+
+  # Grab the args
+  if ($data =~ s/(?:<%\s*args\s*?>((.|\n)*?)<\/%\s*args\s*>\s*\n?)//) {
+    $sections{args} = $1;
+  }
+  else {
+    $sections{args} = "";
+  }
+
+  # Now the init section
+  if ($data =~ s/(?:<%\s*init\s*?>((.|\n)*?)<\/%\s*init\s*>\s*\n?)//g) {
+    $sections{init} = $1;
+  }
+  else {
+    $sections{init} = "";
+  }
+  
+  my $perl = $sections{init};
+  
+  if (!$subScript) {
+    $perl .= "\nmy \$rrsCurrCliLine;\nmy \$rrsLastResult;\n";
+  }
+
+  $perl .= "our \$connType     = 'cli';\n";
+  $perl .= "our \$connInstance = 'default';\n";
+  $perl .= "our \$noWait       = 0;\n";
+  if (!$subScript) {
+    $perl .= "my \$rrsRouterSelect = 0;\n";
+  }
+
+  $perl .= "\$rrsRouterName   = \$rrsRouterNames[\$rrsRouterSelect];\n";
+  $perl .= "\$rrsRouterIp     = \$rrsRouterIps[\$rrsRouterSelect];\n";
+  $perl .= "\$rrsRouterPort   = \$rrsRouterPorts[\$rrsRouterSelect];\n";
+  $perl .= "\$rrsRouterNetNum = \$rrsRouterNetNums[\$rrsRouterSelect];\n";
+  $perl .= "\$rrsRouterNum    = \$rrsRouterNums[\$rrsRouterSelect];\n";
+  $perl .= "\$rrsScriptName   = \$args{script_name};\n";
+
+  no warnings;
+  Debug("Start: $data");
+
+  # Get rid of all blank lines before starting
+  $data =~ s/(?<=\n)\s*\n//g;
+
+  # Get rid of all comments
+  $data =~ s/^\s*#.*\n//gm;
+  # print "Data no WS: $data\n";
+
+  # Main parser - this will fully parse the script
+  while ($data ne "") {
+    if ($data =~ s/^%\s*(.*\n?)//) {
+      Debug("Line perl: $1");
+      # print "1\n";
+      $perl .= $1;
+    }
+    elsif ($data =~ s/^<%\s*perl\s*>((.|\n)*?)<\/%\s*perl\s*>\s*\n?//) {
+      Debug("Block perl: $1");
+      # print "Found perl section: $1\n";
+      $perl .= "$1";
+    }
+    elsif ($data =~ s/^<%\s*script\s+([^>]*)\/?>\s*\n?//) {
+      # Get the attributes
+      my $scriptInfo = $1;
+      my %attr;
+      foreach my $attrPair ($scriptInfo =~ /\s*([^\s=]+\s*=\s*["'][^"']*['"])/g) {
+        Debug("Script change: attrPair: $attrPair\n");
+        my ($name, $val) = ($attrPair =~ /([^\s=]+)\s*=\s*["']([^"']*)['"]/);
+        $attr{$name} = $val;
+      }
+      if (defined $attr{type} && defined ($connInfoBase{$attr{type}})) {
+        Debug("Script type change: $attr{type}");
+        $perl .= "\$connType = \"$attr{type}\";\n";
+      }
+      if (defined $attr{instance}) {
+        Debug("Script instance change: $attr{instance}");
+        $perl .= "\$connInstance = \"$attr{instance}\";\n";
+      }
+      if (defined $attr{nowait} && $attr{nowait}) {
+        $perl .= "\$noWait = \"$attr{nowait}\";\n";
+      }
+      if (defined $attr{'router-num'}) {
+        $$multiRouter_p = 1;
+        Debug("Script router select change: ".$attr{'router-num'});
+        $perl .= "\$rrsRouterSelect = ".$attr{'router-num'}.";\n";
+        $perl .= "\$rrsRouterName   = \$rrsRouterNames[\$rrsRouterSelect];\n";
+        $perl .= "\$rrsRouterIp     = \$rrsRouterIps[\$rrsRouterSelect];\n";
+        $perl .= "\$rrsRouterPort   = \$rrsRouterPorts[\$rrsRouterSelect];\n";
+        $perl .= "\$rrsRouterNetNum = \$rrsRouterNetNums[\$rrsRouterSelect];\n";
+        $perl .= "\$rrsRouterNum    = \$rrsRouterNums[\$rrsRouterSelect];\n";
+
+      }
+      if (defined $attr{check_for_result} && $attr{check_for_result}) {
+        $perl .= "\$rrsLastResult = RrsCheckForLastResult(\$connType, \$connInstance, \$rrsRouterSelect, $attr{timeout});\n";
+      }
+      elsif (defined $attr{get_result} && $attr{get_result}) {
+        $perl .= "\$rrsLastResult = RrsGetLastResult(\$connType, \$connInstance, \$rrsRouterSelect);\n";
+      }
+    }
+    elsif ($data =~ s/^<%if-prompt\s+\/(([^\/]|\n|(\\\/))+)\/\s*>((.|\n)*?)<\/%if-prompt\s*>//) {
+      my ($promptRe, $response) = ($1, $4);
+      $promptRe =~ s/'/\'/g;
+      $promptRe =~ s/\\\//\//g;
+      $response =~ s/'/\'/g;
+      my $respOutput = "''";
+      my $tmp = $response;
+      while ($tmp =~ s/^((.|\n)*?)<%((.|\n)*?)%>//g) {
+        $respOutput .= ". '$1' . ($3)";
+      }
+      $respOutput .= ". '$tmp'" if $tmp;
+      $perl .= "RrsAddToExpectPrompt(\$connType, \$rrsRouterSelect, '$promptRe', ($respOutput), 1);\n";
+    }
+    elsif ($data =~ s/^<%if-prompt\s+"(([^"]|\n|(\\"))+)"\s*>((.|\n)*?)<\/%if-prompt\s*>//) {
+      my ($prompt, $response) = ($1, $4);
+      $prompt =~ s/'/\'/g;
+      $prompt =~ s/\\"/"/g;
+      $response =~ s/'/\'/g;
+      my $respOutput = "''";
+      my $tmp = $response;
+      while ($tmp =~ s/^((.|\n)*?)<%((.|\n)*?)%>//g) {
+        $respOutput .= ". '$1' . ($3)";
+      }
+      $respOutput .= ". '$tmp'" if $tmp;
+      $perl .= "RrsAddToExpectPrompt(\$connType, \$rrsRouterSelect, '$prompt', ($respOutput), 0);\n";
+    }
+    elsif ($data =~ s/^<%((.|\n)*?)%>//) {
+      Debug("Inline perl: $1");
+      # print "inline\n";
+      $perl .= "\$rrsCurrCliLine .= ($1);\n"
+    }
+    elsif ($data =~ s/^<&((.|\n)*?)&>//) {
+      Debug("Import script: $1");
+      # Importing another script
+      my @parts = split(/,/, $1);
+      my $name = shift @parts;
+      $name =~ s/\s//g;
+      my $returnVar;
+      if ($name =~ /([^=]+)=(.*)/) {
+        $name = $2;
+        $returnVar = $1;
+      }
+      my %newArgs;
+
+      # Add the path to the name if it isn't absolute
+      $name = GetImportedScriptName($name);
+      
+      # Insert call to the imported script
+      my $subName = $name;
+      $subName =~ s/[\/\.\-]/__/g;
+      if (defined $returnVar) {
+        $perl .= "$returnVar = ";
+      }
+      $perl .= "$subName(". join(",", @parts) .");\n";
+
+      foreach my $arg (@parts) {
+        # print "ARG: $arg\n";
+        my ($argName, $val) = ($arg =~ /\s*([a-zA-Z0-9_]+)\s*=>\s*(.*)/);
+        if (defined $val) {
+          $newArgs{$argName} = $val;
+        }
+      }
+      Debug("Import of script: $name");
+      # print Dumper \%newArgs;
+      # print "inline\n";
+
+      if (!defined($funcNames{$name})) {
+        $funcNames{$name} = 1;
+        $perlFuncs .= ParseCliScript($name, 1, \%newArgs, $multiRouter_p);
+      }
+      # print "PF: $perlFuncs\n"; 
+    }
+    elsif ($data =~ s/^((.|\n)+?)(((?<=\n)%)|<%|<&|$)/$3/) {
+      Debug("Found cmd text: $1");
+      my $lines = $1;
+      $lines =~ s/(['])/\\$1/g;
+      my $leftover;
+      ($lines, $leftover) = ($lines =~ /^((?:.|\n)*\n)?(.*)?$/);
+      if ($lines =~ /^\s*\n\s*$/) {
+        $lines = " \n";
+      }
+      Debug("Lines: $lines, Leftover: $leftover");
+      foreach my $line (split(/\n/, $lines)) {
+        Debug("Split line: $line");
+        # my $line = $1;
+        if ($line =~ /^\s*#/) {
+          next;
+        }
+        if ($line ne "") {
+          $perl .= "\$rrsCurrCliLine .= \'$line\';\n";
+        }
+        $perl .= "\$rrsLastResult = RrsSendCmd(\$rrsCurrCliLine, \$connType, \$connInstance, \$rrsRouterSelect, \$noWait);\n";
+        $perl .= "\$noWait = 0;\n";
+        $perl .= "\$rrsCurrCliLine = \"\";\n";
+      }
+      if (defined $leftover && $leftover ne "") { 
+        $perl .= "\$rrsCurrCliLine .= \'$leftover\';\n";
+      }
+    }
+
+    Debug("####  DATA: $data\n");
+    
+  }
+  Debug("PERL: $perl");
+
+  # First parse the arguments to the script
+  my $funcHeader = "";
+  my $funcFooter = "";
+  if ($subScript) {
+    my $subName = $scriptName;
+    $subName =~ s/[\/\.\-]/__/g;
+    $funcHeader .= "sub $subName {\n";
+    $funcHeader .= "  my (\%subArgs) = \@_;\n\n";
+    $funcFooter .= "}\n\n";
+  }
+  my %cliArgsCheck = %{$cliArgs};
+  if ($sections{args}) {
+    foreach my $arg (split(/\n/, $sections{args})) {
+      # print "ARG: $arg\n";
+      if ($arg =~ /^(\s|\n)*$/) {
+        next;
+      }
+      my ($name, $default, $desc) = ($arg =~ /\s*(?:my\s*)?\s*([\$]?[a-zA-Z0-9_]+)(?:\s*=>?\s*([^;#]*))?\s*;?(?:\s*#\s*(.*))?/);
+      if ($default ne "" && $default !~ /^['"]/) {
+        $default =~ s/\s*$//;
+        $default = "'$default'";
+      }
+      # print "$name, $default, $desc\n";
+
+      # Make sure that the name has a leading $
+      if ($name !~ /^\$/) {
+        $name = "\$$name";
+      }
+
+      my $nameNoDollar = $name;
+      $nameNoDollar =~ s/^\$//;
+      if ($subScript) {
+        if (!defined($cliArgs->{$nameNoDollar})) {
+          if (!defined($default)) {
+            Fatal("Argument for imported script $scriptName requires the argument $nameNoDollar to be specified");
+          }
+        }
+        else {
+          $default = "\$subArgs{$nameNoDollar}";
+        }
+      }
+      elsif (!defined($default) || $args{prompt}) {
+        # Get the value for the parameter
+        $default = GetArgValue($cliArgs, $name, $desc);
+      }
+      elsif (my $newVal = GetArgValue($cliArgs, $name, $desc, 1)) {
+        $default = $newVal;
+      }
+
+      delete($cliArgsCheck{$nameNoDollar});
+
+      # print "$name, default\n";
+      if ($subScript) {
+        $perl = "my $name = $default;\n$perl";
+      }
+      else {
+        $perl = "my $name = $default;\n$perl";
+      }
+    }
+  }
+
+  foreach my $unknownArg (keys(%cliArgsCheck)) {
+    if ($subScript) {
+      Fatal("Unexpected parameter for sub-script $scriptName: $unknownArg");
+    }
+    else {
+      Fatal("Unknown command line argument: $unknownArg");
+    }
+  }
+
+  $perl = "$funcHeader\n$perl$funcFooter";
+  $perl .= "\n\n$perlFuncs";
+
+  return ($perl);
+
+} # ParseCliScript #
+
+
+
+##############################################################################
+## GetImportedScriptName - 
+##
+## This will determine what the imported script's full path should be 
+##
+##############################################################################
+sub GetImportedScriptName {
+  my ($name) = @_;
+
+  if ($name  =~ /^\//) {
+    return $name;
+  }
+
+  if (-r "$scriptPath/$name") {
+    return "$scriptPath/$name";
+  }
+  
+  # Go through the PATH to find the script
+  foreach my $dir (split(/:/, $ENV{PATH})) {
+    if (-r "$dir/$name") {
+      return "$dir/$name";
+    }
+  }
+
+  return $name;
+
+} # GetImportedScriptName #
+
+
+
+##############################################################################
+## GetArgValue - 
+##
+## This will get the value of the requested parameter.  If it wasn't
+## specified on the command line, then we prompt for it. 
+##
+##############################################################################
+sub GetArgValue {
+  my ($cliArgs, $argName, $desc, $noPrompt) = @_;
+
+  my $response;
+  $argName =~ s/[\$%@]//;
+
+  if (defined($cliArgs->{$argName})) {
+    $response = $cliArgs->{$argName};
+  }
+  elsif (!$noPrompt) {
+    # Prompt for it
+    if (defined $desc) {
+      print "\n${BOLD}$argName $NORMAL- $desc\n";
+      print "Enter value: ";
+    }
+    else {
+      print "\n${BOLD}Enter value for CLI script argument $argName: $NORMAL";
+    }
+    chomp($response = <STDIN>);
+  }
+
+  if ((defined $response) && ($response !~ /^["']/)) {
+    $response = "'$response'";
+  }
+
+  return $response;
+
+} # GetArgValue #
+
+
+##############################################################################
+## RrsSendCmd - 
+##
+## This function will send a command to the router and retrieve the result. 
+##
+##############################################################################
+sub RrsSendCmd {
+  my ($cmd, $connType, $connInstance, $routerSelect, $noWait) = @_;
+  
+  if (!defined $cmd || $cmd eq "") {
+    return("");
+  }
+  
+  if (!defined $routerSelect) {
+    $routerSelect = 0;
+  }
+
+  if ($args{print}) {
+    Msg("Sending: $cmd");
+    return "LastResult";
+  }
+
+  # Msg("routerSelect: $routerSelect, connType: $connType, connInstance: $connInstance");
+  my $expect = $connInfo[$routerSelect]{$connType}{Connection}{$connInstance};
+
+  if (!defined $expect) {
+    &{$connInfoBase{$connType}{ConnectFunc}}($routerSelect, $connInstance);
+    $expect = $connInfo[$routerSelect]{$connType}{Connection}{$connInstance};
+  }
+  
+  if ($connInfo[$routerSelect]{$connType}{ResultPending}{$connInstance}) {
+    $connInfo[$routerSelect]{$connType}{ResultPending}{$connInstance} = 0;
+    RrsGetLastResult();
+  }
+  
+  if (!defined $expect) {
+    Fatal("Couldn't open a connection for type $connType");
+  }
+
+  # Configure the output for the current connection
+  $expect->log_stdout(0);
+
+  # Send the command to the CLI and capture the output
+  my $result;
+  my $origResult;
+  while (1) {
+    #$result = $expect->match();
+    # print "MATCH: >>$result<<\n";
+    # print "Sending command: >>$cmd<<\n";
+    $expect->send("$cmd\r");
+    if ($noWait) {
+      $connInfo[$routerSelect]{$connType}{ResultPending}{$connInstance} = 1;
+      Msg("NoWaitCmd: $cmd");
+      # For some reason we need a slight delay here - probably some sort of linux task issue...
+      select(undef, undef, undef, 0.1);
+      return "Result Pending (no wait)";
+    }
+
+    my $prompts = $connInfo[$routerSelect]{$connType}{ExpectPrompt};
+    
+    if ($extraPrompts{$connType}) {
+      my @allPrompts = (@$prompts, @{$extraPrompts{$connType}});
+      $prompts = \@allPrompts;
+    }
+    my $match = $expect->expect($expectTimeout, @{$prompts});
+    $result = $expect->before();
+    # print ">>$result<<\n";    
+    # foreach my $char (split(//, $result)) {
+    #   printf("%02x ", ord($char));
+    # }
+    $result =~ s/\x1b|\x0d//g;
+    $origResult = $result;
+    $expect->clear_accum();
+    if (!defined $match) {
+      # The expect failed - see if we can be nice about it
+      print "$result";
+
+      if ($result =~ /password\s*:\s*$/i) {
+        $cmd = RrsGetPassword();
+      }
+      elsif ($result =~ /\?\s*$/) {
+        chomp($cmd = <STDIN>);
+      }
+      else {
+        Fatal("The script did not return to the prompt within the timeout period");
+      }
+      $result = "";
+    }
+    else {
+      my $match = $expect->match();
+      $result .= $match;
+      if ($result =~ /password\s*:\s*$/i) {
+        print $result;
+        $cmd = RrsGetPassword();
+      }
+      elsif ($connType eq "cli" &&
+             $result =~ /\(y\/n\)\?/) {
+        if ($showOutput) {
+          print "$connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance}";
+        }
+        $connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance} = $result;
+        $cmd = "y";
+      }
+      elsif ($result =~ /\(yes\/no\)\?\s*$/) {
+        print $result;
+        chomp($cmd = <STDIN>);
+      }
+      else {
+        # print STDERR "RESULT: $result\n";
+        $result =~ s/\r//g;
+        if ($showOutput) {
+          my ($tmpResult, $prompt);
+          if ($connType ne "linux") {
+            ($tmpResult, $prompt) = ($result =~ /^((?:.|\n|\r)*)\n(.*)$/);
+            $cmd = "";
+          }
+          else {
+            $tmpResult = $origResult;
+            $prompt = $match;
+            $cmd .= "\n";
+          }
+          # print STDERR "PROMPT: <$connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance}> CMD: <$cmd> RES: <$tmpResult>\n";
+          print "$connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance}$cmd$tmpResult\n";
+          $connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance} = $prompt;
+        }
+        last;
+      }
+    }
+
+  }
+
+  if ($connType eq "linux") {
+    # print STDERR "R: <$result> OR: <$origResult>\n";
+    
+    $result = $origResult;
+    $result =~ s/\n$//;
+  }
+  else {
+    $result .= "hack";
+
+    # Filter the result a bit - we want all between first and last newlines
+    $result =~ s/^.*\n//;
+    $result =~ s/\n?.*$//;
+  }
+
+  # print STDERR "Returning: <$result>\n";
+  return $result;
+
+} # RrsSendCmd #
+
+
+##############################################################################
+## RrsGetLastResult - 
+##
+## This will wait for results that were previously skipped due to no-wait
+## handling 
+##
+##############################################################################
+sub RrsGetLastResult {
+  my ($connType, $connInstance, $routerSelect) = @_;
+
+  if(!defined($routerSelect)){ return ""; }
+  if(!defined($connType    )){ return ""; }
+  if(!defined($connInstance)){ return ""; }
+
+  my $expect = $connInfo[$routerSelect]{$connType}{Connection}{$connInstance};
+
+  if (!defined $expect) {
+    return "";
+  }
+
+  my $match = $expect->expect($expectTimeout, @{$connInfo[$routerSelect]{$connType}{ExpectPrompt}});
+  my $result = $expect->before();
+  $expect->clear_accum();
+    
+  if (!defined $match) {
+    # The expect failed - see if we can be nice about it
+    print "$result";
+    Fatal("The script did not return to the prompt within the timeout period");
+  }
+  else {
+    $result .= $expect->match();
+    $result =~ s/\r//g;
+    if ($showOutput) {
+      my ($tmpResult, $prompt) = ($result =~ /^((?:.|\n|\r)*)\n(.*)$/);
+      print "$connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance}$tmpResult\n";
+      $connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance} = $prompt;
+    }
+  }
+
+  $result .= "hack";
+
+  # Filter the result a bit - we want all between first and last newlines
+  $result =~ s/^.*\n//;
+  $result =~ s/\n?.*$//;
+
+  return $result;
+
+} # RrsGetLastResult #
+
+
+##############################################################################
+## RrsAddToExpectPrompt - Add an expect prompt/response pair 
+##
+##############################################################################
+sub RrsAddToExpectPrompt {
+  my ($connType, $routerSelect, $prompt, $response, $isRe) = @_;
+
+  my $prompts = $extraPrompts{$connType} || [];
+
+  my $cb = sub {
+    my $exp = shift;
+    $exp->send("$response\n");
+    exp_continue;
+  };
+
+  my $found = 0;
+
+  # Replace if already there
+  foreach my $entry (@$prompts) {
+    if ($isRe) {
+      if ($entry->[0] eq "-re" &&
+          $entry->[1] eq $prompt) {
+        $entry->[2] = $cb;
+        $found = 1;
+      }
+    }
+    elsif ($entry->[0] eq $prompt) {
+      $entry->[1] = $cb;
+      $found = 1;
+    }
+  }
+
+  # Add to the end if it wasn't found
+  if (!$found) {
+    if ($isRe) {
+      push(@$prompts, ["-re", $prompt, $cb]);
+    }
+    else {
+      push(@$prompts, [$prompt, $cb]);
+    }
+  }
+
+  $extraPrompts{$connType} = $prompts;
+
+} # RrsAddToExpectPrompt #
+
+
+
+##############################################################################
+## RrsCheckForLastResult - 
+##
+## This will wait for a result from a previous no-wait command.  If the
+## result isn't available, it will return undef.  If it is available, it
+## will return the result. 
+##
+##############################################################################
+sub RrsCheckForLastResult {
+  my ($connType, $connInstance, $routerSelect, $timeout) = @_;
+
+  my $expect = $connInfo[$routerSelect]{$connType}{Connection}{$connInstance};
+  if (!defined $expect) {
+    return "";
+  }
+
+  my $match = $expect->expect($timeout || $expectTimeout, @{$connInfo[$routerSelect]{$connType}{ExpectPrompt}});
+  my $result = $expect->before();
+  $expect->clear_accum();
+    
+  if (!defined $match) {
+    # The expect failed - keep the partial data and return nothing
+    $connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance} .= $result;
+    return undef;
+  }
+  else {
+    $result .= $expect->match();
+    $result =~ s/\r//g;
+    if ($showOutput) {
+      my ($tmpResult, $prompt) = ($result =~ /^((?:.|\n|\r)*)\n(.*)$/);
+      $tmpResult = "" if (!defined $tmpResult);
+      print "$connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance}$tmpResult\n";
+      $connInfo[$routerSelect]{$connType}{LastPrompt}{$connInstance} = $prompt;
+    }
+  }
+
+  $result .= "hack";
+
+  # Filter the result a bit - we want all between first and last newlines
+  $result =~ s/^.*\n//;
+  $result =~ s/\n?.*$//;
+
+  return $result;
+
+} # RrsCheckForLastResult #
+
+
+
+##############################################################################
+## RrsGetPassword - 
+##
+## This will get a password from the user without echoing it to the screen. 
+##
+##############################################################################
+sub RrsGetPassword {
+
+  ReadMode('noecho'); # don't echo
+  chomp(my $password = <STDIN>);
+  ReadMode(0);        # back to normal
+  print "\n";
+  return $password;
+
+} # RrsGetPassword #
+
+
+##############################################################################
+## RrsFillRouterInfo - 
+##
+## This will go through all the routers and resolve their names to IPs and
+## fill in the other info. 
+##
+##############################################################################
+sub RrsFillRouterInfo {
+  my ($onlyDoLast) = @_;
+
+  my $routerSelect = 0;
+  foreach my $name (@rrsRouterNames) {
+    if ($onlyDoLast && ($routerSelect < ($rrsNumRouters - 1))) {
+      $routerSelect++;
+      next;
+    }
+    if ($name =~ /^sm:(\d+)/) {
+      my $simNum = $1;
+      # Simulator
+      my ($localName, $localIp) = RrsGetHostnameAndIp("localhost");
+      my ($rrsRouterNetNum, $rrsRouterNum) = ($localIp =~ /^\d+\.\d+\.(\d+)\.(\d+)/);
+      $rrsRouterIps[$routerSelect]     = $localIp;
+      $rrsRouterPorts[$routerSelect]   = undef;
+      $rrsRouterNetNums[$routerSelect] = $rrsRouterNetNum;
+      $rrsRouterNums[$routerSelect]    = $rrsRouterNum;
+      $rrsRouterNames[$routerSelect]   = "simulator-$simNum";
+      $rrsRouterInfo{"simulator-$simNum"} = {Ip => $localIp,
+                                        NetNum => $rrsRouterNetNum,
+                                        Num => $rrsRouterNum,
+                                        Name => "simulator-$simNum"};
+      $routerSelect++;
+      next;
+    }
+    my ($rrsRouterName, $rrsRouterIp, $rrsRouterPort) = RrsGetHostnameAndIp($name);
+    if (!$rrsRouterIp) {
+      print "\n";
+      Error("Can't resolve $name to an IP address\n");
+      ShowScriptHelp();
+      exit;
+    }
+    
+    $rrsRouterName ||= $name;
+
+    my ($rrsRouterNetNum, $rrsRouterNum);
+    if ($rrsRouterIp) {
+      ($rrsRouterNetNum, $rrsRouterNum) = ($rrsRouterIp =~ /^\d+\.\d+\.(\d+)\.(\d+)/);
+    }
+
+    # Put the name into canonical form
+    if ($rrsRouterName =~ /perf/) {
+      # Do nothing
+    }
+    elsif ($rrsRouterIp =~ /^192\.168\.(\d+)\.(\d+)/) {
+      $rrsRouterName = "lab-$1-$2";
+    }
+    else {
+      if ($rrsRouterName =~ /lab(\d+)/) {
+        $rrsRouterName = "lab-128-$1";
+      }
+      else {
+        $rrsRouterName   = $name;
+      }
+    }
+
+    $rrsRouterIps[$routerSelect]     = $rrsRouterIp;
+    $rrsRouterPorts[$routerSelect]   = $rrsRouterPort;
+    $rrsRouterNetNums[$routerSelect] = $rrsRouterNetNum;
+    $rrsRouterNums[$routerSelect]    = $rrsRouterNum;
+    $rrsRouterNames[$routerSelect]   = $rrsRouterName;
+    $rrsRouterInfo{$rrsRouterName} = {Ip => $rrsRouterIp,
+                                      Port => $rrsRouterPort,
+                                      NetNum => $rrsRouterNetNum,
+                                      Num => $rrsRouterNum,
+                                      Name => $rrsRouterName};
+
+    $routerSelect++;
+
+  }
+
+} # RrsFillRouterInfo #
+
+
+##############################################################################
+## SpawnLocalShell - This will start a bash shell on the current router 
+##
+##############################################################################
+sub SpawnLocalShell {
+  my ($obj) = @_;
+
+  $$obj = new Expect();
+  $$obj->raw_pty(1);
+  $$obj->spawn("/bin/bash")
+    or die("Cannot spawn \"/bin/bash\": $!\n");
+  
+  # print "Starting shell\n";
+
+  if ($args{debug}) {
+    $$obj->log_stdout(1);
+  }
+  else {
+    $$obj->log_stdout(0);
+  }
+
+  my $match = $$obj->expect($loginTimeout, 
+                            '# ');
+  if (!defined $match) {
+    Fatal("Couldn't start local shell on router");
+  }
+
+  $$obj->log_stdout(1);
+
+} # SpawnLocalShell #
+
+
+
+##############################################################################
+## SpawnSimulator - This will start the specified process locally 
+##
+##############################################################################
+sub SpawnSimulator {
+  my ($obj, $successPrompt, $cmd) = @_;
+
+  $$obj = new Expect();
+  $$obj->raw_pty(1);
+  $$obj->spawn("$cmd")
+    or die("Cannot spawn \"$cmd\": $!\n");
+  
+  if ($args{debug}) {
+    $$obj->log_stdout(1);
+  }
+  else {
+    $$obj->log_stdout(0);
+  }
+
+  my $match = $$obj->expect($loginTimeout, 
+                            $successPrompt);
+  if (!defined $match) {
+    Fatal("Couldn't start command: $cmd");
+  }
+
+  $$obj->log_stdout(1);
+
+} # SpawnSimulator #
+
+
+
+##############################################################################
+## SpawnSshAndLogin - 
+##
+## This will start and expect session and connect to the router. 
+##
+##############################################################################
+sub SpawnSshAndLogin {
+  my ($loginLocation, $password, $authkey, $obj, $successPrompt, $routerSelect) = @_;
+
+  $$obj = new Expect();
+  $$obj->raw_pty(1);
+
+  my $port = $rrsRouterPorts[$routerSelect] || 22;
+
+  if (defined $authkey) {
+    $$obj->spawn("ssh", "-i", "$authkey", "-p $port", $loginLocation)
+        or die("Cannot spawn \"ssh $loginLocation\": $!\n");
+  } else {
+    $$obj->spawn("ssh", "-p $port", $loginLocation)
+        or die("Cannot spawn \"ssh $loginLocation\": $!\n");
+  }
+
+  if ($args{debug}) {
+    $$obj->log_stdout(1);
+  }
+  else {
+    $$obj->log_stdout(0);
+  }
+
+  my $match = $$obj->expect($loginTimeout, 
+                            "assword: ", 
+                            $successPrompt,
+                            "Please try again later...",
+                            "continue connecting (yes/no)? ");
+  my $result = $$obj->before();
+
+  if (!defined $match) {
+    Fatal("Couldn't log into router with $loginLocation; got $result");
+  }
+
+
+  # SSH unknown host
+  if ($match == 4) {
+    $$obj->send("yes\r");
+    $match = $$obj->expect($loginTimeout, 
+                           "assword: ", 
+                           $successPrompt,
+                           "Please try again later..."
+                          );
+  }
+
+  if (!defined $match) {
+    Fatal("Couldn't log into router with $loginLocation");
+  }
+
+  # Deal with the password - assuming it asked for one
+  if ($match == 1) {
+    $$obj->send("$password\r");
+    $match = $$obj->expect($loginTimeout, 
+                           $successPrompt,
+                           "NEVER MATCH THIS",
+                           "Please try again later...",
+                           "assword: ",
+                           "Access Denied");
+  }
+
+  if (!defined $match || $match == 4) {
+    Fatal("Username/Password was rejected.");
+    $$obj->hard_close();
+    return -1;
+  }
+
+  if ($match == 5) {
+    Fatal("Username/Password was rejected.");
+    $$obj->hard_close();
+    return -1;
+  }
+
+  if ($match == 3) {
+    Fatal("Router S/W is not ready yet.  Please try again later.");
+  }
+
+
+  # Turn STDOUT back on
+  if (!$args{quiet}) {
+    $$obj->log_stdout(1);
+  }
+
+  return 0;
+
+} # SpawnSshAndLogin #
+
+
+
+##############################################################################
+## SpawnLabConsole - 
+##
+## This will connect to the router via the serial port (using lab-console)
+##
+##############################################################################
+sub SpawnLabConsole {
+  my ($loginLocation, $user, $password, $obj, $successPrompt, $routerSelect) = @_;
+
+  print "Connecting to lab-console $loginLocation\n";
+
+  $$obj = new Expect();
+  $$obj->raw_pty(1);
+  $$obj->spawn("lab-console", $loginLocation, "--kill")
+    or die("Cannot spawn \"lab-console $loginLocation\": $!\n");
+
+  if ($args{debug}) {
+    $$obj->log_stdout(1);
+  }
+  else {
+    $$obj->log_stdout(0);
+  }
+
+
+  my $match = $$obj->expect($loginTimeout, "kill line ");
+  Fatal ("Could not connect to $loginLocation via serial port") if (!defined $match);
+
+  $match = $$obj->expect($loginTimeout, "Escape character is ");
+  Fatal ("Could not connect to $loginLocation via serial port") if (!defined $match);
+
+  $$obj->send("\r");
+
+  while(1) {
+    $match = $$obj->expect($loginTimeout, 
+                           "login: ", 
+                           "logout: not login shell", 
+                           "\$ ", "> ", "# ", "<RRS>: ");
+    my $result = $$obj->before();
+
+    if (!defined $match) {
+      Fatal("Couldn't log into router $loginLocation via serial port");
+    }
+
+    if ($match == 1) {
+      $$obj->send("$user\r");
+      last;
+    }
+    elsif ($match == 2) {
+      $$obj->send("exit\r");
+    }
+    else {
+      
+      $$obj->send("logout\r");
+      sleep(1);
+      $$obj->send("\r");
+    }
+
+  }
+
+
+  $match = $$obj->expect($loginTimeout, 
+                         "assword: ");
+  Fatal("Couldn't log into router $loginLocation via serial port") if !defined $match;
+
+  # Deal with the password - assuming it asked for one
+  if ($match == 1) {
+    $$obj->send("$password\r");
+    $match = $$obj->expect($loginTimeout, 
+                           $successPrompt,
+                           "NEVER MATCH THIS",
+                           "Please try again later...",
+                           "assword: ");
+  }
+
+  if (!defined $match || $match == 4) {
+    $$obj->hard_close();
+    return -1;
+  }
+  
+  if ($match == 3) {
+    Fatal("Router S/W is not ready yet.  Please try again later.");
+  }
+
+
+#  $$obj->send("-echo\r");
+#  $match = $$obj->expect(5, $successPrompt);
+  #return Fatal("Couldn't log into router $loginLocation via serial port") if !defined $match;
+
+  # Turn STDOUT back on
+  if (!$args{quiet}) {
+    $$obj->log_stdout(1);
+  }
+
+  return 0;
+
+} # SpawnLabConsole #
+
+
+
+##############################################################################
+## CliConnect - 
+##
+##############################################################################
+sub CliConnect {
+  my ($routerSelect, $connInstance) = @_;
+
+  my $sim = 0;
+  foreach my $key (keys(%{$connInfoBase{cli}})) {
+    $connInfo[$routerSelect]{cli}{$key} = $connInfoBase{cli}{$key};
+  }
+  if ($args{serial}) {
+    SpawnLabConsole($rrsRouterIps[$routerSelect], 
+                    $args{cli_username}, $args{cli_password},
+                    \$connInfo[$routerSelect]{cli}{Connection}{$connInstance},
+                    '> ', $routerSelect, 1);
+  }
+  elsif ($rrsRouterNames[$routerSelect] =~ /^simulator-(\d+)/) {
+    print "trying to spawn sim\n";
+    SpawnSimulator(\$connInfo[$routerSelect]{cli}{Connection}{$connInstance}, 
+                   '> ', 
+                   "sm router cli $1");
+    $sim = 1;
+  }
+  elsif ($rrsRouterIps[$routerSelect] =~ /^127\.0\.0\./) {
+    SpawnLocalShell(\$connInfo[$routerSelect]{cli}{Connection}{$connInstance});
+  }
+  else {
+    SpawnSshAndLogin($args{cli_username}."\@".$rrsRouterIps[$routerSelect],
+                    $args{cli_password},
+                    $args{cli_authkey},
+                     \$connInfo[$routerSelect]{cli}{Connection}{$connInstance},
+                     '> ', $routerSelect, 1);
+  }
+
+  my $conn_p = $connInfo[$routerSelect]{cli}{Connection}{$connInstance};
+
+  if ($args{debug}) {
+    $conn_p->log_stdout(1);
+  }
+  else {
+    $conn_p->log_stdout(0);
+  }
+
+  if ($sim) {
+    $conn_p->send("exit\r");
+    $conn_p->expect(10, "> ");
+    $conn_p->clear_accum();
+    $conn_p->send("exit\r");
+    $conn_p->expect(10, "> ");
+    $conn_p->clear_accum();
+  }
+
+  $conn_p->send("no alarm-display\r");
+  $conn_p->expect(10, "> ");
+  $conn_p->clear_accum();
+  $conn_p->send("no paging\r");
+  $conn_p->expect(10, "> ");
+  $conn_p->clear_accum();
+  $connInfo[$routerSelect]{cli}{LastPrompt}{$connInstance} = "";
+
+
+} # CliConnect #
+
+
+##############################################################################
+## SoldebugConnect - 
+##
+##############################################################################
+sub SoldebugConnect {
+  my ($routerSelect, $connInstance) = @_;
+
+  my $sim = 0;
+  foreach my $key (keys(%{$connInfoBase{soldebug}})) {
+    $connInfo[$routerSelect]{soldebug}{$key} = $connInfoBase{soldebug}{$key};
+  }
+  if ($args{serial}) {
+    SpawnLabConsole($rrsRouterIps[$routerSelect],
+                    "support", "support",
+                    \$connInfo[$routerSelect]{soldebug}{Connection}{$connInstance},
+                    '$ ', $routerSelect, 1);
+  }
+  elsif ($rrsRouterNames[$routerSelect] =~ /^simulator-(\d+)/) {
+    SpawnSimulator(\$connInfo[$routerSelect]{soldebug}{Connection}{$connInstance}, 
+                   '> ',
+                   "sm debug soldebug $1");
+    $sim = 1;
+  }
+  elsif ($rrsRouterIps[$routerSelect] =~ /^127\.0\.0\./) {
+    SpawnLocalShell(\$connInfo[$routerSelect]{soldebug}{Connection}{$connInstance});
+  }
+  else {
+    SpawnSshAndLogin("support\@".$rrsRouterIps[$routerSelect],
+                     "support",
+                     \$connInfo[$routerSelect]{soldebug}{Connection}{$connInstance},
+                     '$ ', $routerSelect, 1);
+  }
+  
+  my $conn_p = $connInfo[$routerSelect]{soldebug}{Connection}{$connInstance};
+
+  $conn_p->log_stdout($args{debug});
+  $conn_p->send("/usr/solace/loads/currentload/bin/soldebug\r");
+  $conn_p->expect(10, ['-re', '\(safe\)-> '], ['-re', '-> ']);
+  $conn_p->clear_accum();
+  $conn_p->send(":unsafe\r");
+  $conn_p->expect(10, ['-re', '\n-> ']);
+  $conn_p->clear_accum();
+  $connInfo[$routerSelect]{soldebug}{LastPrompt}{$connInstance} = "";
+
+} # SoldebugConnect #
+
+
+##############################################################################
+## LinuxConnect - 
+##
+##############################################################################
+sub LinuxConnect {
+  my ($routerSelect, $connInstance) = @_;
+
+  my $amRoot = 0;
+
+  foreach my $key (keys(%{$connInfoBase{linux}})) {
+    $connInfo[$routerSelect]{linux}{$key} = $connInfoBase{linux}{$key};
+  }
+  if ($args{serial}) {
+    SpawnLabConsole($rrsRouterIps[$routerSelect],
+                    "support", "support",
+                    \$connInfo[$routerSelect]{linux}{Connection}{$connInstance},
+                    '$ ', $routerSelect);
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->log_stdout($args{debug}?1:0);
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->raw_pty(1);
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("stty -echo\r");
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(10, ']$', ']# ');
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("bash\r");
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(10, ']$', ']# ');
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+  }
+  elsif ($rrsRouterIps[$routerSelect] =~ /^127\.0\.0\./) {
+    SpawnLocalShell(\$connInfo[$routerSelect]{linux}{Connection}{$connInstance});
+  }
+  elsif ($rrsRouterIps[$routerSelect] =~ /^sm:(\d+)/) {
+    SpawnLocalShell(\$connInfo[$routerSelect]{linux}{Connection}{$connInstance});
+  }
+  else {
+    my $result = SpawnSshAndLogin("support\@".$rrsRouterIps[$routerSelect],
+                                  "support",
+                                  \$connInfo[$routerSelect]{linux}{Connection}{$connInstance},
+                                  '$ ', $routerSelect);
+
+    if (defined $result && $result != 0) {
+      # Failed to login - this could be caused by attempting to log into a perf host
+      # Try again with a root login
+      $result = SpawnSshAndLogin("root\@".$rrsRouterIps[$routerSelect],
+                                 "solace1",
+                                 \$connInfo[$routerSelect]{linux}{Connection}{$connInstance},
+                                 ']# ', $routerSelect);
+      if ($result != 0) {
+        Fatal("Unable to connect to server $rrsRouterIps[$routerSelect]");
+      }
+      $amRoot = 1;
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->log_stdout($args{debug}?1:0);
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->raw_pty(1);
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("stty -echo\r");
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(10, ']$', ']# ');
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("bash\r");
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(10, ']$', ']# ');
+      $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+    }
+
+  }
+  
+  # $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->log_file("/home/efunnekotter/tmp/expect.log");
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->log_stdout($args{debug}?1:0);
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("source /usr/solace/loads/currentload/scripts/solbashrc\r");
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(10, ']$', ']# ');
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+
+  if (!$amRoot) {
+    $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("sudo su -\r");
+
+
+    $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(2,
+                                                                       ['-re', 'assword( for root)?:', sub { my $self = shift;
+                                                                                           $self->send("solace1\r");
+                                                                                           exp_continue; }],
+                                                                       ']#');
+    $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+  }
+
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("export PS1='<RRS>: '\r");
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(2, '<RRS>: ');
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->send("unset PROMPT_COMMAND\r");
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->expect(2, '<RRS>: ');
+  $connInfo[$routerSelect]{linux}{Connection}{$connInstance}->clear_accum();
+
+  $connInfo[$routerSelect]{linux}{LastPrompt}{$connInstance} = "<RRS>: ";
+
+} # LinuxConnect #
+
+
+##############################################################################
+## RunCliScript - This will run the perl version of the CLI script. 
+##
+##############################################################################
+sub RunCliScript {
+  my ($perlScript, $multiRouter) = @_;
+
+  if ($args{verbose}) {
+    Msg("\nRunning script:\n");
+    LineNumPrint($perlScript);
+  }
+
+  eval($perlScript);
+
+  # Hack to allow the same script to be run multiple times if multiple routers
+  # are specified and the script is not multirouter aware
+  if (!$multiRouter && ($rrsNumRouters > 1)) {
+
+    for my $i (1 .. $rrsNumRouters-1) {
+      $perlScript =~ s/my \$rrsRouterSelect = 0/my \$rrsRouterSelect = $i/;
+      eval($perlScript);
+    }
+
+  }
+
+  if ($@) {
+    Msg("There was an error in the generated script:\n");
+    LineNumPrint($perlScript);
+    Fatal($@);
+  }
+
+  RrsCloseConnections() if $args{serial};
+  if (!$args{quiet}) {
+    Msg("\nScript completed");
+  }
+
+} # RunCliScript #
+
+
+##############################################################################
+## LineNumPrint - 
+##
+## This will print out the passed in text with line numbers at the beginning
+## of the lines. 
+##
+##############################################################################
+sub LineNumPrint {
+  my ($text) = @_;
+
+  my $lineNum = 1;
+  foreach my $line (split(/\n/, $text)) {
+    Msg(sprintf("%4d %s", $lineNum, $line));
+    $lineNum++;
+  }
+  Msg("");
+  
+} # LineNumPrint #
+
+
+
+##############################################################################
+## RrsShowOutput - 
+##
+## Controls if the communication with the router is dumped to the screen or
+## not 
+##
+##############################################################################
+sub RrsShowOutput {
+  my ($val) = @_;
+
+  $showOutput = $val || $args{debug};
+
+} # RrsShowOutput #
+
+
+##############################################################################
+## RrsSaveShowOutput - Remember the current state of show output 
+##
+##############################################################################
+sub RrsSaveShowOutput {
+
+  push(@rrsShowOutputStack, $showOutput);
+
+} # RrsSaveShowOutput #
+
+
+##############################################################################
+## RrsRestoreShowOutput - Restore the last saved version of show output 
+##
+##############################################################################
+sub RrsRestoreShowOutput {
+
+  $showOutput = pop(@rrsShowOutputStack);
+
+} # RrsRestoreShowOutput #
+
+
+
+##############################################################################
+## RrsAddRouter - 
+##
+## This will add a router to the list of routers that we can talk to.  The
+## $rrsNumRouters variable will be incremented as well. 
+##
+##############################################################################
+sub RrsAddRouter {
+  my ($routerName) = @_;
+
+  push(@rrsRouterNames, $routerName);
+  
+  $rrsNumRouters++;
+
+  # Fill the the newly added routers information
+  RrsFillRouterInfo(1);
+
+} # RrsAddRouter #
+
+
+##############################################################################
+## RrsGetHostnameAndIp - 
+##
+## This will do a lookup on the IP or hostname provided and give back both
+## name and IP. 
+##
+##############################################################################
+sub RrsGetHostnameAndIp {
+  my ($name) = @_;
+
+  my (@bytes, @octets,
+    $packedaddr,
+    $raw_addr,
+    $host_name,
+    $ip
+  );
+
+  my ($base, $port) = ($name =~ /^([^:]+)(?::(\d+))?/);
+  
+  if($base =~ /[a-zA-Z]/g) {
+    $raw_addr = (gethostbyname($base))[4];
+    @octets = unpack("C4", $raw_addr);
+    $host_name = $base;
+    $ip = join(".", @octets);
+  } else {
+    @bytes = split(/\./, $base);
+    map {if ($_ > 255) { Fatal("Invalid IP address: $base")}} @bytes;
+    $packedaddr = pack("C4",@bytes);
+    $ip = $base;
+    $host_name = (gethostbyaddr($packedaddr, 2))[0];
+  }
+
+  return($host_name, $ip, $port);
+
+} # RrsGetHostnameAndIp #
+
+
+
+##############################################################################
+## RrsSetTimeout - 
+##
+##############################################################################
+sub RrsSetTimeout {
+  my ($val) = @_;
+
+  $expectTimeout = $val;
+
+} # RrsSetTimeout #
+
+
+
+##############################################################################
+## RrsCloseConnections - 
+##
+## This will close down all the current sessions to the routers 
+##
+##############################################################################
+sub RrsCloseConnections {
+
+  for my $rtr (@connInfo) {
+
+    for my $type (keys(%{$rtr})) {
+      for my $inst (keys(%{$rtr->{$type}{Connection}})) {
+        if (defined($rtr->{$type}{Connection}{$inst})) {
+          if ($type eq "soldebug") {
+            $rtr->{$type}{Connection}{$inst}->send(":exit\r");
+            $rtr->{$type}{Connection}{$inst}->expect(10, '-re', "# \$");
+          }
+          elsif ($type eq "cli" || $type eq "linux") {
+            $rtr->{$type}{Connection}{$inst}->send("stty sane\r");
+            $rtr->{$type}{Connection}{$inst}->send("exit\r");
+            $rtr->{$type}{Connection}{$inst}->send("logout\r");
+          }
+          select(undef, undef, undef, 0.1);
+          $rtr->{$type}{Connection}{$inst}->hard_close();
+        }
+      }
+    }
+
+  }
+
+} # RrsCloseConnections #
+
+
+##############################################################################
+## RrsExit - Cleanly exists - this should avoid hanging soldebug sessions 
+##
+##############################################################################
+sub RrsExit {
+
+  RrsCloseConnections();
+  exit;
+
+} # RrsExit #
+
+
+
+##############################################################################
+## ShowScriptHelp - 
+##
+## This will parse and then display the help for the specified script. 
+##
+##############################################################################
+sub ShowScriptHelp {
+
+  my %info = ParseScriptHelp($args{script_name});
+
+  print "\n$BOLD$args{script_name}:$NORMAL\n";
+
+  print "$info{Comments}\n";
+
+  my $cmdLine = "$args{script_name} <rtr1[,rtr2,...]> ";
+
+  my $help = "";
+  my $optional = "";
+  my $required = "";
+  foreach my $arg (sort {$info{Args}{$a}{Order} <=> $info{Args}{$b}{Order}} keys(%{$info{Args}})) {
+    $help .= "  $arg=<value>";
+    if (defined $info{Args}{$arg}{Default}) {
+      $optional .= "[$arg=<value>] ";
+      $help .= " (default: $info{Args}{$arg}{Default})\n";
+    }
+    else {
+      $required .= "<$arg=<value>> ";
+      $help .= " $BOLD*required*$NORMAL\n";
+    }
+    $help .= "     $info{Args}{$arg}{Description}\n\n";
+  }
+  
+  print "${BOLD}Usage:$NORMAL $cmdLine$required$optional\n\n";
+
+  
+  if ($help ne "") {
+    print "${BOLD}Parameters:$NORMAL\n";
+    print "$help\n";
+    print "run-router-script version: $revision\n\n";
+  }
+
+
+} # ShowScriptHelp #
+
+
+
+# Call main - the start of the script
+Main();
+
+
+
+
+
+##############################################################################
+## ParseArgs - Will do all the argument parsing
+##
+##############################################################################
+sub ParseArgs {
+  
+  # Options Parsing
+  @allArgs = @ARGV;
+
+  my %defaultArgs = %args;
+  %args = ();
+
+  # Converts position arguments to names
+  my @posToName = (
+              'script_name',
+              'router_names',
+              'cli_script_args',
+  );
+
+  # Converts position arguments to names
+  my @posToType = (
+              'string',
+              'string',
+              'string',
+  );
+
+  # All required arguments
+  my %requiredArgs = (
+                       'script_name' => 1,
+                       'router_names' => 1,
+  );
+
+  # All enum arguments
+  my %enumArgs = (
+  );
+
+  # Cross ref of perl version of args to command line version
+  my %perlToCmdArg = (
+                       'prompt' => 'prompt',
+                       'script_name' => 'script-name',
+                       'router_names' => 'router-names',
+                       'cli_username' => 'cli-username',
+                       'cli_password' => 'cli-password',
+                       'cli_authkey' => 'cli-authkey',
+                       'print' => 'print',
+                       'root' => 'root',
+                       'cli_script_args' => 'cli-script-args',
+                       'debug' => 'debug',
+                       'gen_completion' => 'gen-completion',
+                       'help' => 'help',
+                       'interactive' => 'interactive',
+                       'quiet' => 'quiet',
+                       'serial' => 'serial',
+                       'timeout' => 'timeout',
+                       'verbose' => 'verbose',
+  );
+
+  my $result = GetOptions (
+                           'prompt' => \$args{prompt},
+                           'cli-username=s' => \$args{cli_username},
+                           'cli-password=s' => \$args{cli_password},
+                           'cli-authkey=s' => \$args{cli_authkey},
+                           'print' => \$args{print},
+                           'root' => \$args{root},
+                           'debug' => \$args{debug},
+                           'gen-completion' => \$args{gen_completion},
+                           'help' => \$args{help},
+                           'interactive' => \$args{interactive},
+                           'quiet' => \$args{quiet},
+                           'serial' => \$args{serial},
+                           'timeout=i' => \$args{timeout},
+                           'verbose' => \$args{verbose},
+  );
+
+  if (!$result) { exit(1); }
+
+
+  # Positional argument processing
+
+  my $posIdx = 0;
+  while (@ARGV) {
+    if ($posIdx >= 3) {
+      last;
+    }
+    if ($posIdx == 2) {
+      # Consume the remainder of @ARGV
+      $args{$posToName[$posIdx]} = [];
+      @{$args{$posToName[$posIdx]}} = @ARGV;
+      if ($posToType[$posIdx] eq 'integer') {
+        # Run through the list and convert text to numbers
+        map {$_ = StrToNum($_, "Failed to convert $_ to number");}
+          @{$args{$posToName[$posIdx]}};
+      }
+      last;
+    }
+  
+    $args{$posToName[$posIdx]} = shift @ARGV;
+    if ($posToType[$posIdx] eq 'integer') {
+      $args{$posToName[$posIdx]} = 
+         StrToNum($args{$posToName[$posIdx]}, "Failed to convert $args{$posToName[$posIdx]} to number");
+    }
+    delete $requiredArgs{$posToName[$posIdx]};
+    $posIdx++;
+  }
+  @remainingArgs = @ARGV;
+  @parsedArgs = @allArgs[0..(scalar(@allArgs)-scalar(@remainingArgs)-1)];
+
+  # Copy over all the arguments that were parsed
+  foreach my $arg (keys(%args)) {
+    if (defined $args{$arg}) {
+      $parsedArgs{$arg} = 1;
+    }
+  }
+
+  # Put back the default arguments
+  foreach my $arg (keys(%defaultArgs)) {
+    if (!defined($args{$arg})) {
+      $args{$arg} = $defaultArgs{$arg};
+    }
+  }
+
+  # Standard option processing
+
+  if ($args{gen_completion}) {
+    print "--prompt --print --debug --help --interactive --quiet --verbose ";
+    exit;
+  }
+
+  if ($args{help}) {
+    if (!defined($args{script_name})) {
+      pod2usage(-verbose => 2);    
+    }
+    else {
+      ShowScriptHelp();
+    }
+    
+    exit;
+  }
+  my $showCmdLine = 0;
+  if ($args{interactive}) {
+    PromptForArgs(1, %args);
+    $showCmdLine = 1;
+  }
+  
+  # Check for missing required params
+  foreach my $key (keys(%requiredArgs)) {
+    if (defined $args{$key}) {
+      delete $requiredArgs{$key};
+    }
+  }
+  if (scalar(keys(%requiredArgs)) > 0) {
+    print "\nMissing some required parameters\n";
+    PromptForArgs(1, %requiredArgs);
+    $showCmdLine = 1;
+  }
+  
+  # Check that enums have valid values
+  my $argInfo = GetArgInfo();
+  foreach my $arg (keys(%enumArgs)) {
+    if (defined $args{$arg}) {
+      if (not defined $enumArgs{$arg}{$args{$arg}}) {
+        print "\nInvalid value for argument $arg.  Valid values are:\n";
+        foreach my $value (keys(%{$enumArgs{$arg}})) {
+          print "  $value\n";
+        }
+        exit;
+      }
+    }
+  }
+  
+  if ($showCmdLine) {
+    # Output the command line for this
+    DisplayCommandLine();
+  }
+
+  eval("Solace::Usage::logUsage(\$args{script_name});");
+
+} # ParseArgs
+
+
+##############################################################################
+## PromptForArgs - Will ask the user for values for various arguments
+##
+## skipAutoArgs: When true, it will not prompt for --interactive, --debug,
+##               --quiet, --verbose or --help
+##
+##############################################################################
+sub PromptForArgs {
+  my ($skipAutoArgs, %argsForPrompting) = @_;
+  my $argInfo = GetArgInfo();
+  
+  print "\nInteractive Input:\n\n";
+  foreach my $arg (@{$argInfo->{Args}}) {
+    my $name = $arg->{Name};
+    my $perlName = $arg->{PerlName};
+    if (not exists $argsForPrompting{$perlName}) {
+      next;
+    }
+    if ($skipAutoArgs && 
+        ($name =~ /^(debug)|(interactive)|(quiet)|(verbose)|(help)|(gen-completion)$/)) {
+      next;
+    }
+    my $desc = $arg->{Description};
+    my $space = " " x (length($name) + 3);
+    $desc =~ s/(.{1,75 - length($name)})(?:\s|$|\n)/$1\n$space/g;
+    my $prompt = "\n$BOLD$name$NORMAL - $arg->{Description}";
+    my $default = '';
+    my $defVal = '';
+    if (defined $args{$perlName}) {
+      $default = " [$args{$perlName}]";
+      $defVal = $args{$perlName};
+    }
+    elsif ($arg->{Default}) {
+      $default = " [$arg->{Default}]";
+      $defVal = $arg->{Default};
+    }
+    while (1) {
+      if ($arg->{ValType} eq 'boolean') {
+        print $prompt . "\nEnter value for flag (undef, 0 or 1)$default: ";
+      }
+      elsif ($arg->{ValType} =~ /integer|float/) {
+        print $prompt . "\nEnter numeric value$default: ";
+      }
+      elsif ($arg->{ValType} eq 'enum') {
+        print $prompt . "\nSelect value: ";
+      }
+      else {
+        print $prompt . "\nEnter value$default: ";
+      }
+      my $response;
+      if ($arg->{ValType} eq 'enum') {
+        print "\n";
+        $default = '';
+        my $num = 1;
+        my $defaultNum;
+        foreach my $val (@{$arg->{EnumList}}) {
+          print "  $num: $val\n";
+          if ($val eq $defVal) {
+            $default = "[$num]";
+            $defaultNum = $num;
+          }
+          $num++;
+        }
+        while (1) {
+          print "Select number$default: "; 
+          chomp($response = <STDIN>);
+          if ($response eq '') {
+            $response = defined $defaultNum ? $defaultNum : 0;
+          }
+          if ($response >= 1 &&
+              $response <= scalar(@{$arg->{EnumList}})) {
+            $response = $arg->{EnumList}[$response-1];
+            last;
+          }
+          print "Invalid selection - try again\n";
+        }
+      }
+      else {
+        chomp($response = <STDIN>);
+      }
+      if ($arg->{Required} && 
+          (not defined $args{$perlName}) &&
+          $response eq '') {
+        print "You must enter a value for this argument\n";
+      }
+      else {
+        if ($response eq '' && 
+            defined $args{$perlName}) {
+          # Keep the same value
+        }
+        elsif ($response eq '' && 
+               defined $arg->{Default}) {
+          $args{$perlName} = $arg->{Default};
+        }
+        else {
+          if ($arg->{ValType} eq 'integer') {
+            $args{$perlName} =
+              StrToNum($response, "Failed to convert $response to number");
+          }
+          else {
+            $args{$perlName} = $response;
+          }
+        }
+        if (($arg->{ValType} eq 'boolean') && 
+            (($args{$perlName} eq 'undef') || ($args{$perlName}) eq ''))  {
+          $args{$perlName} = undef;
+        }
+        last;
+      }
+    }
+  }
+
+}
+
+
+
+##############################################################################
+## GetArgInfo - This will return all the script information in perl
+##              struct form.
+##
+##############################################################################
+sub GetArgInfo {
+
+  my $cfgInfo = {
+             'PositionalListLocation' => 2,
+             'SuperScriptRevision' => '609',
+             'ShortDescription' => 'Run scripts on a router',
+             'ParsingType' => 'unordered',
+             'PositionalListIdx' => undef,
+             'Args' => [
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Default' => 0,
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Name' => 'prompt',
+                           'Description' => 'Prompt user for all unspecified CLI script args',
+                           'PerlName' => 'prompt'
+                         },
+                         {
+                           'Type' => 'named',
+                           'Default' => 'admin',
+                           'Required' => 0,
+                           'ValType' => 'string',
+                           'Name' => 'cli-username',
+                           'Description' => 'Username to use when logging into the cli',
+                           'PerlName' => 'cli_username'
+                         },
+                         {
+                           'Type' => 'named',
+                           'Default' => 'admin',
+                           'Required' => 0,
+                           'ValType' => 'string',
+                           'Name' => 'cli-password',
+                           'Description' => 'Password to use when logging into the cli',
+                           'PerlName' => 'cli_password'
+                         },
+                         {
+                           'Type' => 'named',
+                           'Default' => 'admin',
+                           'Required' => 0,
+                           'ValType' => 'string',
+                           'Name' => 'cli-authkey',
+                           'Description' => 'SSH Private key when logging into the cli',
+                           'PerlName' => 'cli_authkey'
+                         },
+                         {
+                           'Type' => 'positional',
+                           'Required' => 1,
+                           'ValType' => 'string',
+                           'Name' => 'script-name',
+                           'Description' => 'The script to run',
+                           'PerlName' => 'script_name'
+                         },
+                         {
+                           'Type' => 'positional',
+                           'Required' => 1,
+                           'ValType' => 'string',
+                           'Description' => 'A list of names or IPs of the router to run the scripts on.  They must be delimited by commas, semicolons or colons (e.g. "lab28,lab-129-33").',
+                           'Name' => 'router-names',
+                           'PerlName' => 'router_names'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Default' => 0,
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Will print the result of the script instead of sending it to the router.',
+                           'Name' => 'print',
+                           'PerlName' => 'print'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Default' => 0,
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Run linux commands as root user rather than support',
+                           'Name' => 'root',
+                           'PerlName' => 'root'
+                         },
+                         {
+                           'Type' => 'positional-list',
+                           'Default' => [],
+                           'Required' => 0,
+                           'ValType' => 'string',
+                           'Description' => 'List of parameters that will be passed to the CLI script.',
+                           'Name' => 'cli-script-args',
+                           'PerlName' => 'cli_script_args'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Turn on all debug output.',
+                           'Name' => 'debug',
+                           'PerlName' => 'debug'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Prints out completion info for the parameters',
+                           'Name' => 'gen-completion',
+                           'PerlName' => 'gen_completion'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Print out usage info for this script',
+                           'Name' => 'help',
+                           'PerlName' => 'help'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Query the user for values for each of the arguments, providing help for each.  This will print out the appropriate command line for future reference before executing the script.',
+                           'Name' => 'interactive',
+                           'PerlName' => 'interactive'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Reduce the amount of output to the bare minimum.',
+                           'Name' => 'quiet',
+                           'PerlName' => 'quiet'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Connect to the router via its serial port (using lab-console).',
+                           'Name' => 'serial',
+                           'PerlName' => 'serial'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'integer',
+                           'Description' => 'Timeout waiting for prompt.',
+                           'Name' => 'timeout',
+                           'PerlName' => 'timeout'
+                         },
+                         {
+                           'AllowNo' => 0,
+                           'Type' => 'named',
+                           'Required' => 0,
+                           'ValType' => 'boolean',
+                           'Description' => 'Print out more user-level output',
+                           'Name' => 'verbose',
+                           'PerlName' => 'verbose'
+                         }
+                       ],
+             'Name' => 'run-router-script',
+             'Description' => '
+This script is an interpreter for router CLI, soldebug and linux command shell scripts.  
+It parses and executes these scripts on the specified router.  The scripts are written in 
+a templating language very similar to the perl module Mason that is used to embed perl into HTML.  
+The scripts are comprised of bare text of the form that would be normally inputted into the
+CLI/soldebug along with bits of perl that are embedded to give the writer control over the flow
+of the script.
+
+The script language is fairly simple in its method of passing in arguments and embedding
+perl.  Here is a brief description.  Search for "perl Mason" on Google for more info
+on Mason.
+
+CONTROLLING TYPE OF SCRIPT:
+
+To indicate within the script where the commands should go, use the directive:
+<%script type="<type>"/>.  Valid types are "cli", "soldbug" and "linux".  All three
+of these types can be placed in the same script.  Changing back and forth between
+types is perfectly acceptable.  Three independent expect sessions are maintained,
+so the state of one session will not be lost when changing the script type.
+The script type defaults to "cli" at the beginning of each script (including
+imported scripts).
+E.g.,
+
+  <%script type="cli"/>
+  enable
+  show dataplane stats
+  <%script type="soldebug"/>
+  :conn 3
+  help
+  <%script type="linux"/>
+  uname -r
+
+Additionally, the %script element can take the attribute "router-num" to change the 
+which of the routers that were specified on the command line should be connected to
+when running this portion of the script.  Note that the number is zero-based 
+(router-num="0" is the first router).  Note also that if a number that is greater
+than the number of provided routers is given, the script will stop.  If you want
+to check for the correct number of routers earlier in the script, the $rrsNumRouters
+variable holds the number of routers that were parsed from the command line.
+
+E.g.,
+
+  <%script type="cli" router-num="0"/>
+  enable
+  show dataplane stats
+  <%script type="cli" router-num="1"/>
+  enable
+  show dataplane stats
+  <%script type="cli" router-num="$perlVariable"/>
+  enable
+  show dataplane stats
+
+
+SIMPLEST FORM:
+
+In its simplest form, a router-script (RS) is just a set of commands, just like
+the kind of script that is sourced directly into the CLI.  E.g.,
+
+  enable
+  configure terminal
+  subscriber s1
+  exit
+  exit
+  exit
+
+EMBEDDING LINES OF PERL: 
+
+Perl can be embedded at the line level by putting a % in the first column of the line.
+E.g.,
+
+  enable
+  configure terminal
+  % for my $i (1 .. 10) {
+  subscriber s1
+  exit
+  % }
+  exit
+  exit
+
+The script above will configure the subscriber s1 10 times.  Not very useful.  How
+many s1s do we really need?
+
+EMBEDDING MANY LINES OF PERL:
+
+If you have a bunch of lines of perl, it is more convenient to surround it with the
+markup:  <%perl> ... </%perl>
+E.g.,
+
+  enable
+  configure terminal
+  <%perl>
+  my $i;
+  for $i (1 .. 10) {
+  </%perl>
+  subscriber s<% $i %>
+  exit
+  % }
+  exit
+  exit
+
+It is exactly the same as putting a % at the beginning of each of those lines.
+
+EMBEDDING PERL VALUES:
+
+A perl value can be embedded directly into a line by surrounding it with <% ... %> markup.
+The code within the brackets is treated as if it is in a print( ... ) block.
+E.g.,
+
+  enable
+  configure terminal
+  % for my $i (1 .. 10) {
+  subscriber s<% $i %>
+  exit
+  % }
+  exit
+  exit
+
+This script will configure subs s1 to s10.  This is a bit more useful.  But still it 
+is hard-coded.  I would need a separate script for each sub name and number of subs that
+I want.
+
+Or if you need the subscriber name with leading zeros:
+
+  subscriber s<% sprintf("%04d",$i) %>
+
+ADDING ARGUMENTS TO THE SCRIPTS:
+
+It is possible to pass arguments into the scripts in the same way that Mason supports them.
+They should be placed, one to a line, within a <%args>  </%args> markers.  Each parameter
+can have a default value and they can have a comment following them.  The syntax is:
+<ArgName> [=> <DefaultArgValue>] [# <Comment>]
+
+E.g.,
+
+  <%args>
+  prefix => rtrperf  # Comment
+  num_subs => 10
+  </%args>
+  enable
+  configure terminal
+  % for my $i (1 .. $num_subs) {
+  subscriber <% $prefix . $i %>
+  exit
+  % }
+  exit
+  exit
+
+If you don\'t specify the the default value for the argument, the user will have to define
+it on the command line or they will be prompted for it.  If you put a comment/description
+after the parameter, then the prompt will show that comment.
+
+The arguments to the script should be specified on the command line in pretty much 
+what ever format you can imagine.  Some examples:  
+  
+  arg1=argVal1 arg2=argVal2 
+  arg1:argVal1,arg2:argVal2 
+  arg1 argVal1 arg2 argVal2 
+
+Again, if you don\'t specify a required argument, you will be prompted for it.  
+
+IMPORTING OTHER SCRIPTS:
+
+To make this very flexible and reusable, the language does support importing of other
+scripts into the current script.  You do this with the <& ... &> markup in the same 
+way that Mason does it.  Inside the brackets, you specify the script name and the
+parameters for that script.  All parameters that don\'t have default values must be
+specified.  The syntax is:  <&  <script-file> [, <argName1> => <argVal1>, ...] &>.
+E.g.,
+
+  <%args>
+  prefix => rtrperf  # Comment
+  num_subs => 10
+  </%args>
+  enable
+  configure terminal
+  % for my $i (1 .. $num_subs) {
+  <& scripts/add-one-sub, sub_name => ($prefix . sprintf("%04d",$i)) &>
+  exit
+  % }
+  exit
+  exit
+
+Now you can factor the creation of a subscriber out into another script so that if
+things change in the CLI or if you want to configure more things, you can do
+that in one place and not have to change lots of scripts.
+
+One thing to note is that the imported script will be at the current level of the
+CLI.  In this case, enable and configure terminal have already been entered into
+the CLI so in this case the imported script should be written with that in mind.
+
+SHEBANG:
+
+One of the best things about this script is that it can be used as an interpreter
+specified via a shebang (#!).  You can\'t specify it directly due to nested shebangs
+not working, but you can do it this way:
+
+#!/usr/bin/env run-router-script
+
+Now you can just put that at the top of your script and just run it directly, rather
+than having to pass it into this script.  One small strangeness about that is that
+if you specify --help, you will get the help from this script.  
+
+GLOBAL VARIABLES:
+
+The script framework provides a few global variables to the script that can be
+used in any of the perl portions of the script.
+
+ $rrsLastResult    - Will always hold the result of the previous command.
+ $rrsRouterName    - Holds the name of the router we are talking to
+ $rssRounterIp     - Holds the IP of the router we are talking to
+ $rssRouterNetNum  - Holds the subnet number (i.e. 128 or 129) of the router
+ $rssRouterNum     - Holds the last octet of the IP address
+ $rssRouterSelect  - Holds the current selected router from last <%script router-num="<select>">
+
+ @rrsRouterNames   - Array of router names
+ @rssRounterIps    - Array of router IPs
+ @rssRouterNetNums - Array of router NetNums
+ @rssRouterNums    - Array of router nums
+ %rssRouterInfo    - Hash of the following keys: Name, Ip, NetNum, Num indexed by name
+
+FUNCTIONS:
+
+There are some functions that the perl part of you script can call
+
+ RrsShowOutput(bool)         - If val is 0, don\'t display communication
+ RrsAddRouter(name)          - Add a router to the list of routers (e.g. RrsAddRouter("lab-128-88");)
+ RrsSendCmd(cmd, scriptType) - Send a command to the router
+ RrsSetTimeout(seconds)      - Change time before timeout waiting for prompt (see also --timeout)
+ Error(message)              - Print error message to the user 
+ Fatal(message)              - Print message and quit
+
+Of course, you can call all normal perl functions and even define some in your
+script if you like.
+
+
+
+'
+           };
+
+  return $cfgInfo;
+
+} # GetArgInfo
+
+
+##############################################################################
+## DisplayCommandLine - This will print out the command line for the
+##                      current arguments
+##
+##############################################################################
+sub DisplayCommandLine {
+
+  my $argInfo = GetArgInfo();
+
+  # my $output = "$argInfo->{Name} ";
+  my $output = "$0 ";
+  my $positional = '';
+
+  foreach my $arg (@{$argInfo->{Args}}) {
+    my $name = $arg->{Name};
+    my $perlName = $arg->{PerlName};
+    if (not defined $args{$perlName}) {
+      next;
+    }
+    if (defined $arg->{Default} && 
+        $args{$perlName} eq $arg->{Default}) {
+      next;
+    }
+    if ($perlName eq 'interactive') {
+      next;
+    }
+
+    my $value = $args{$perlName};
+    if ($value =~ /\s/) {
+      $value = "'$value'";
+    }
+    
+    if ($arg->{Type} eq 'named') {
+      if ($arg->{ValType} eq 'boolean') {
+        if (defined $args{$perlName}) {
+          if ($args{$perlName} == 0) {
+            $output .= "--no-$name ";
+          }
+          else {
+            $output .= "--$name ";
+          }
+        }
+      }
+      else {
+        $output .= "--$name=$value ";
+      }
+    }
+    else {
+      if (ref $value eq 'ARRAY') {
+        if (scalar(@{$value} > 1) || $value->[0] ne '') {
+          $positional .= "@{$value} ";
+        }
+      }
+      else {
+        $positional .= "$value ";
+      }
+    }
+
+  }
+  
+  print "Command line:\n";
+  print "$output$positional\n\n";
+
+} # DisplayCommandLine #
+
+
+##############################################################################
+## Log - This will output messages of various levels
+##
+##############################################################################
+sub Log {
+  my ($level, $message, $addCaller) = @_;
+
+  my $outputMsg = 0;
+  if (!$args{quiet}) {
+    if ($level eq "DEBUG") {
+      if ($args{debug}) {
+        $outputMsg = 1;
+      }
+    }
+    elsif ($level eq "INFO") {
+      if ($args{debug} || $args{verbose}) {
+        $outputMsg = 1;
+      }
+    }
+    elsif ($level eq "WARN") {
+        $outputMsg = 1;
+    }
+  }
+
+  if (($level eq "ERROR") || ($level eq "FATAL") || ($level eq "MSG")) {
+    $outputMsg = 1;
+  }
+  
+  if ($outputMsg) {
+    if (($level ne "MSG") || $addCaller) {
+      print "$level: ";
+    }
+    if ($addCaller) {
+      my @caller = caller(1);
+      $caller[1] =~ s/^.*\///;
+      print "$caller[1]:$caller[2]: ";
+    }
+    print "$message\n";
+  }
+
+  if ($level eq "FATAL") {
+    exit(1);
+  }
+
+} # Log
+
+sub Fatal { Log("FATAL", @_) };
+sub Error { Log("ERROR", @_) };
+sub Warn  { Log("WARN", @_) };
+sub Info  { Log("INFO", @_) };
+sub Debug { Log("DEBUG", @_) };
+sub Msg   { Log("MSG", @_) };
+
+
+
+##############################################################################
+## StrToNum - This will convert all types of strings into numbers
+##
+##############################################################################
+sub StrToNum {
+  my ($string, $failMsg) = @_;
+
+  if ($string !~ 
+      /^([-+]?_*[1-9][0-9_]*  |
+         0x_*[0-9a-f][0-9a-f_]* |
+         0b_*[01][01_]*         |
+         0[0-7_]*)$
+      /xi) {
+    Fatal($failMsg);
+  }
+
+  my $num = eval($string);
+  
+  if ($@) {
+    Fatal($@);
+  }
+
+  return $num;
+
+}
+  
+
+BEGIN {
+  use FindBin;
+  use lib "$FindBin::Bin/../lib/perl";
+  eval("require 'Solace/Usage.pm';");
+}
+
+__END__
+
+=head1 NAME
+
+run-router-script (version $Rev: 6728 $)
+
+=head1 DESCRIPTION
+
+
+This script is an interpreter for router CLI, soldebug and linux command shell scripts.  
+It parses and executes these scripts on the specified router.  The scripts are written in 
+a templating language very similar to the perl module Mason that is used to embed perl into HTML.  
+The scripts are comprised of bare text of the form that would be normally inputted into the
+CLI/soldebug along with bits of perl that are embedded to give the writer control over the flow
+of the script.
+
+The script language is fairly simple in its method of passing in arguments and embedding
+perl.  Here is a brief description.  Search for "perl Mason" on Google for more info
+on Mason.
+
+CONTROLLING TYPE OF SCRIPT:
+
+To indicate within the script where the commands should go, use the directive:
+<%script type="<type>"/>.  Valid types are "cli", "soldbug" and "linux".  All three
+of these types can be placed in the same script.  Changing back and forth between
+types is perfectly acceptable.  Three independent expect sessions are maintained,
+so the state of one session will not be lost when changing the script type.
+The script type defaults to "cli" at the beginning of each script (including
+imported scripts).
+E.g.,
+
+  <%script type="cli"/>
+  enable
+  show dataplane stats
+  <%script type="soldebug"/>
+  :conn 3
+  help
+  <%script type="linux"/>
+  uname -r
+
+
+SIMPLEST FORM:
+
+In its simplest form, a router-script (RS) is just a set of commands, just like
+the kind of script that is sourced directly into the CLI.  E.g.,
+
+  enable
+  configure terminal
+  subscriber s1
+  exit
+  exit
+  exit
+
+EMBEDDING LINES OF PERL: 
+
+Perl can be embedded at the line level by putting a % in the first column of the line.
+E.g.,
+
+  enable
+  configure terminal
+  % for my $i (1 .. 10) {
+  subscriber s1
+  exit
+  % }
+  exit
+  exit
+
+The script above will configure the subscriber s1 10 times.  Not very useful.  How
+many s1s do we really need?
+
+EMBEDDING MANY LINES OF PERL:
+
+If you have a bunch of lines of perl, it is more convenient to surround it with the
+markup:  <%perl> ... </%perl>
+E.g.,
+
+  enable
+  configure terminal
+  <%perl>
+  my $i;
+  for $i (1 .. 10) {
+  </%perl>
+  subscriber s<% $i %>
+  exit
+  % }
+  exit
+  exit
+
+It is exactly the same as putting a % at the beginning of each of those lines.
+
+EMBEDDING PERL VALUES:
+
+A perl value can be embedded directly into a line by surrounding it with <% ... %> markup.
+The code within the brackets is treated as if it is in a print( ... ) block.
+E.g.,
+
+  enable
+  configure terminal
+  % for my $i (1 .. 10) {
+  subscriber s<% $i %>
+  exit
+  % }
+  exit
+  exit
+
+This script will configure subs s1 to s10.  This is a bit more useful.  But still it 
+is hard-coded.  I would need a separate script for each sub name and number of subs that
+I want.
+
+Or if you need the subscriber name with leading zeros:
+
+  subscriber s<% sprintf("%04d",$i) %>
+
+ADDING ARGUMENTS TO THE SCRIPTS:
+
+It is possible to pass arguments into the scripts in the same way that Mason supports them.
+They should be placed, one to a line, within a <%args>  </%args> markers.  Each parameter
+can have a default value and they can have a comment following them.  The syntax is:
+<ArgName> [=> <DefaultArgValue>] [# <Comment>]
+
+E.g.,
+
+  <%args>
+  prefix => rtrperf  # Comment
+  num_subs => 10
+  </%args>
+  enable
+  configure terminal
+  % for my $i (1 .. $num_subs) {
+  subscriber <% $prefix . $i %>
+  exit
+  % }
+  exit
+  exit
+
+If you don't specify the the default value for the argument, the user will have to define
+it on the command line or they will be prompted for it.  If you put a comment/description
+after the parameter, then the prompt will show that comment.
+
+The arguments to the script should be specified on the command line in pretty much 
+what ever format you can imagine.  Some examples:  
+  
+  arg1=argVal1 arg2=argVal2 
+  arg1:argVal1,arg2:argVal2 
+  arg1 argVal1 arg2 argVal2 
+
+Again, if you don't specify a required argument, you will be prompted for it.  
+
+IMPORTING OTHER SCRIPTS:
+
+To make this very flexible and reusable, the language does support importing of other
+scripts into the current script.  You do this with the <& ... &> markup in the same 
+way that Mason does it.  Inside the brackets, you specify the script name and the
+parameters for that script.  All parameters that don't have default values must be
+specified.  The syntax is:  <&  <script-file> [, <argName1> => <argVal1>, ...] &>.
+E.g.,
+
+  <%args>
+  prefix => rtrperf  # Comment
+  num_subs => 10
+  </%args>
+  enable
+  configure terminal
+  % for my $i (1 .. $num_subs) {
+  <& scripts/add-one-sub, sub_name => ($prefix . sprintf("%04d",$i)) &>
+  exit
+  % }
+  exit
+  exit
+
+Now you can factor the creation of a subscriber out into another script so that if
+things change in the CLI or if you want to configure more things, you can do
+that in one place and not have to change lots of scripts.
+
+One thing to note is that the imported script will be at the current level of the
+CLI.  In this case, enable and configure terminal have already been entered into
+the CLI so in this case the imported script should be written with that in mind.
+
+Finally, you can return a value from an imported script.  To catch the result, just
+add a variable assignment before the script name:
+
+  <& $result = scripts/add-one-sub, sub_name => ($prefix . sprintf("%04d",$i)) &>
+
+In the called script, you must end with a 'return <value>;' in perl context to get
+the result to be returned:
+
+  example-cli-command 1
+  example-cli-command 2
+  % return $val;  # <= this will get the script to return $val
+
+ADVANCED %script ATTRIBUTES
+
+The %script element can take the attribute "router-num" to change the 
+which of the routers that were specified on the command line should be connected to
+when running this portion of the script.  Note that the number is zero-based 
+(router-num="0" is the first router).  Note also that if a number that is greater
+than the number of provided routers is given, the script will stop.  If you want
+to check for the correct number of routers earlier in the script, the $rrsNumRouters
+variable holds the number of routers that were parsed from the command line.
+
+E.g.,
+
+  <%script type="cli" router-num="0"/>
+  enable
+  show dataplane stats
+  <%script type="cli" router-num="1"/>
+  enable
+  show dataplane stats
+  <%script type="cli" router-num="$perlVariable"/>
+  enable
+  show dataplane stats
+
+
+The %script element does have a few other attributes that can be used in conjuction
+in order to run simultaneous commands.  Typically this is used to run more than one linux
+command in parallel (e.g. start a long-running subscriber tool and then start a separate
+publisher tool).  The attributes that control this behaviour are:
+
+  instance:          Control which instance to use - any unique string
+  nowait:            Continue execution without waiting for a result 
+                     (only applied to the command immediately 
+                     following the %script directive)
+  check_for_result:  Will check to see if there is a result for the 
+                     previous 'nowait' command on the specified instance.  
+                     If there is a result, '$rrsLastResult' will contain 
+                     it.  Otherwise, '$rrsLastResult' will be undefined.
+  get_result:        Will wait for the result of the previous 'nowait' command.
+
+
+E.g. gunzip two files simultaneously, and wait for them both to be finished
+
+  <%script type="linux" instance="one" nowait="1"/>
+  gunzip <% $file1 %>
+  <%script type="linux" instance="two" nowait="1"/>
+  gunzip <% $file2 %>
+  % do {
+  <%script type="linux" instance="one" check_for_result="1"/>
+  % } while (!defined $rrsLastResult);
+  % do {
+  <%script type="linux" instance="two" check_for_result="1"/>
+  % } while (!defined $rrsLastResult);
+  %# When you reach here, both tasks have been completed
+
+
+
+
+SHEBANG:
+
+One of the best things about this script is that it can be used as an interpreter
+specified via a shebang (#!).  You can't specify it directly due to nested shebangs
+not working, but you can do it this way:
+
+#!/usr/bin/env run-router-script
+
+Now you can just put that at the top of your script and just run it directly, rather
+than having to pass it into this script.  One small strangeness about that is that
+if you specify --help, you will get the help from this script.  
+
+GLOBAL VARIABLES:
+
+The script framework provides a few global variables to the script that can be
+used in any of the perl portions of the script.
+
+ $rrsLastResult    - Will always hold the result of the previous command.
+ $rrsRouterName    - Holds the name of the router we are talking to
+ $rssRounterIp     - Holds the IP of the router we are talking to
+ $rssRouterNetNum  - Holds the subnet number (i.e. 128 or 129) of the router
+ $rssRouterNum     - Holds the last octet of the IP address
+ $rssRouterSelect  - Holds the current selected router from last <%script router-num="<select>">
+ $rssScriptName    - Holds the name of the script being run
+
+ @rrsRouterNames   - Array of router names
+ @rssRounterIps    - Array of router IPs
+ @rssRouterNetNums - Array of router NetNums
+ @rssRouterNums    - Array of router nums
+ %rssRouterInfo    - Hash of the following keys: Name, Ip, NetNum, Num indexed by name
+
+FUNCTIONS:
+
+There are some functions that the perl part of you script can call
+
+ RrsShowOutput(bool)         - If val is 0, don't display communication
+ RrsAddRouter(name)          - Add a router to the list of routers (e.g. RrsAddRouter("lab-128-88");)
+ RrsSendCmd(cmd, scriptType) - Send a command to the router
+ RrsSetTimeout(seconds)      - Change time before timeout waiting for prompt (see also --timeout)
+ Error(message)              - Print error message to the user 
+ Fatal(message)              - Print message and quit
+
+Of course, you can call all normal perl functions and even define some in your
+script if you like.
+
+
+
+
+
+=head1 OPTIONS
+
+run-router-script [OPTIONS] <script-name> <router-names> [cli-script-args ...] 
+
+Where:
+
+=over
+
+=item script-name ... (string) B<*Required*>
+
+The script to run
+
+=item router-names ... (string) B<*Required*>
+
+A list of names or IPs of the router to run the scripts on.  They must be delimited by commas, semicolons or colons (e.g. "lab28,lab-129-33").
+
+=item cli-script-args ... (zero or more strings)
+
+List of parameters that will be passed to the CLI script.
+[Default: ]
+
+=item --root
+
+Run linux portions of the script as the root user
+
+=item --prompt
+
+Prompt user for all unspecified CLI script args
+
+=item --cli-username
+
+Username to use when logging into the cli
+
+=item --cli-password
+
+Password to use when logging into the cli
+
+=item --print
+
+Will print the result of the script instead of sending it to the router.
+
+=item --serial
+
+Connect to the router via its serial port (using lab-console).
+
+=item --timeout
+
+Timeout waiting for prompt.
+
+=item --gen-completion
+
+Prints out completion info for the parameters
+
+=item --interactive
+
+Query the user for values for each of the arguments, providing help for each.  This will print out the appropriate command line for future reference before executing the script.
+
+=item --help
+
+Display the help for the specified script.  If no script is specified, then the help will be for
+this script instead.
+
+=item --quiet, --verbose, --debug
+
+Control the amount of information printed during execution
+
+=back
+

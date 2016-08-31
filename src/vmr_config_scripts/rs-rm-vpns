@@ -1,0 +1,15 @@
+#!/usr/bin/env run-router-script
+#
+#  This will remove all VPNs on the router
+#
+
+<%args>
+$vn => ""            # Prefix string for the VPN name
+$qn => ""            # Prefix string for the queue name
+</%args>
+
+show current-config message-vpn <% $vn %>* remove > rs_tmp.out
+source script rs_tmp.out stop no > null
+end
+delete rs_tmp.out
+exit

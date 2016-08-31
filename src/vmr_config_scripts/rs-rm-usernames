@@ -1,0 +1,33 @@
+#!/usr/bin/env run-router-script
+#
+#  This will remove all usernames on the router
+#
+
+<%args>
+</%args>
+
+show username * 
+
+<%perl>
+
+my ($usernames) = ($rrsLastResult =~ /-------\s*(\n(.|\n)*)$/);
+my @names = ();
+if ($usernames) {
+  @names = ($usernames =~ /\n([A-Za-z0-9_\-]+)\s/g);
+}
+
+
+</%perl>
+
+enable
+con t
+
+% foreach my $name (@names) {
+%   if (($name !~ m/^\n(#|\s)/) && ($name !~ m/^admin$/)) {
+      no username <% $name %>
+%   }
+% }
+
+
+end
+exit
