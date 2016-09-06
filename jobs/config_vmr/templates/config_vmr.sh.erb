@@ -2,56 +2,10 @@
 
 set -e
 
-function parse_url()
-{
-# Regex Groups are as follow:
-#   protocol : 2
-#   user : 5 or 7 (7 means no password)
-#   password : 6
-#   host: 8
-#   port: 10
-  regex="^(^(.*)://)?((([^:@]+):([^@]+)@)|([^@]+)@)?([^:]+)(:([^\/]+))?(/.*)?"
-
-  if [[ $url =~ $regex ]]
-  then
-    protocol=${BASH_REMATCH[2]}
-    if [ -z ${BASH_REMATCH[5]} ]
-    then
-      user=${BASH_REMATCH[7]}
-    else
-      user=${BASH_REMATCH[5]}
-    fi
-    password=${BASH_REMATCH[6]}
-    host=${BASH_REMATCH[8]}
-    port=${BASH_REMATCH[10]}
-  else
-    echo "This url was invalid: $url"
-    exit 1
-  fi
-
-  protocol=${protocol:-http}
-  user=${user:-admin}
-  password=${password:-admin}
-  port=${port:-8080}
-
-  if [ -z $host ]
-  then
-    echo "Error parsing $url.  Could not extract the host"
-    exit 1
-  fi
-
-  echo "VMR for this URI was parsed into:"
-  echo "  Protocol: ${protocol}"
-  echo "  User: ${user}"
-  echo "  Password: ${password}"
-  echo "  Host: ${host}"
-  echo "  Port: ${port}"
-}
-
 cd /var/vcap/packages/vmr_config_scripts
 
 tar zxf vmr_config_scripts.tgz
-cd vmr_config_scripts
+cd src/vmr_config_scripts
 export PATH=`pwd`:$PATH
 export HOME=`pwd`
 
@@ -61,92 +15,110 @@ chmod +x rs-config-server-cert
 chown root:root PCF-PoC.pem
 chmod 600 PCF-PoC.pem
 
-echo "dedicated_vmr_list = <%= properties.dedicated_vmr_list %>"
-echo "shared_vmr_list = <%= properties.shared_vmr_list %>"
-echo "starting_port = <%= properties.starting_port %>"
-echo "broker_user = <%= properties.broker_user %>"
-echo "broker_password = <%= properties.broker_password %>"
-echo "broker_hostname = <%= properties.broker_hostname %>"
+echo "DEDICATED_VMR_LIST = <%= properties.dedicated_vmr_list %>"
+echo "SHARED_VMR_LIST = <%= properties.shared_vmr_list %>"
+echo "STARTING_PORT = <%= properties.starting_port %>"
+echo "BROKER_USER = <%= properties.broker_user %>"
+echo "BROKER_PASSWORD = <%= properties.broker_password %>"
+echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
+echo "SSH_PORT = <%= properties.ssh_port %>"
+echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
 
 # Installs perl modules required to run rs scripts, and jq so we
 # are able to easily parse JSON from this bash script
 sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass
 
-<% dedicated_uris = properties.dedicated_vmr_list.split(",") %>
-<% shared_uris = properties.shared_vmr_list.split(",") %>
-starting_port=<%= properties.starting_port %>
-broker_user=<%= properties.broker_user %>
-broker_password=<%= properties.broker_password %>
-broker_hostname=<%= properties.broker_hostname %>
-ssh_port=<%= properties.ssh_port %>
+STARTING_PORT=<%= properties.starting_port %>
+BROKER_USER=<%= properties.broker_user %>
+BROKER_PASSWORD=<%= properties.broker_password %>
+BROKER_HOSTNAME=<%= properties.broker_hostname %>
+SSH_PORT=<%= properties.ssh_port %>
+ADMIN_USER=admin
+ADMIN_PASSWORD=<%= properties.admin_password %>
 
-timeout=600
+<% if_p("dedicated_vmr_list") do |vmrs| %>
+  echo "List of dedicated VMRs:"
+  <% for vmr in vmrs %>
+    echo <%= vmr %>
+  <% end %>
+<% end %>
+
+<% if_p("shared_vmr_list") do |vmrs| %>
+  echo "List of shared VMRs:"
+  <% for vmr in vmrs %>
+    echo <%= vmr %>
+  <% end %>
+<% end %>
+
+TIMEOUT=600
 
 echo "Waiting for Solace Service Broker to be available..."
 # Wait until Service Broker is ready
-result=0
-while [ $result -eq 0 ]
+RESULT=0
+while [ $RESULT -eq 0 ]
 do
-  res=`curl -sL -X GET -w "%{http_code}\\n" "$broker_user:$broker_password@$broker_hostname/solace/status" -o body.txt`
-  if [ $res -eq "200" ]; then
+  RES=`curl -sL -X GET -w "%{http_code}\\n" "$BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/status" -o body.txt`
+  if [ $RES -eq "200" ]; then
     echo "Service Broker is UP.  Initial State: "
     cat body.txt
-    result=1
+    RESULT=1
   else
-    timeout=$((timeout-10))
-    if [ $timeout -lt 0 ]; then
+    TIMEOUT=$((TIMEOUT-10))
+    if [ $TIMEOUT -lt 0 ]; then
       echo "FATAL: Timed out while waiting for Service Broker to start."
       exit 1
     else
-      echo "Service Broker still DOWN, HTTP Response Code: $res.  Will retry in 10 seconds."
+      echo "Service Broker still DOWN, HTTP Response Code: $RES.  Will retry in 10 seconds."
     fi
     sleep 10
   fi
 done
 
 # Reset the service broker's database
-curl -X PUT $broker_user:$broker_password@$broker_hostname/solace/reset/repositories -H "Content-Type: application/json;charset=UTF-8"
+curl -X PUT $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/reset/repositories -H "Content-Type: application/json;charset=UTF-8"
 
-<% dedicated_uris.each do |vmr_uri| %>
-url=<%= vmr_uri %>
-parse_url
+<% if_p("dedicated_vmr_list") do |vmrs| %>
+  <% vmrs.each do |vmr_ip| %>
+  VMR_IP=<%= vmr_ip %>
 
-echo "Configuring $url as a Dedicated VMR"
+  echo "Configuring $VMR_IP:$SSH_PORT as a Dedicated VMR"
 
-#Generate a random password for the file user of this VMR
-fileuser_pwd=`openssl rand -base64 12`
+  #Generate a random password for the file user of this VMR
+  FILEUSER_PWD=`openssl rand -base64 12`
 
-echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
+  echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=dedicated portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
+  ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
 
-# TLS not supported for 0.1.x release
-#echo "Uploading server certificate to $url, and installing certificate on Message Router"
-#sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-#./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+  # TLS not supported for 0.2.x release
+  #echo "Uploading server certificate to $url, and installing certificate on Message Router"
+  #sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+  #./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 
-curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
 
+  <% end %>
 <% end %>
 
-<% shared_uris.each do |vmr_uri| %>
-url=<%= vmr_uri %>
-parse_url
+<% if_p("shared_vmr_list") do |vmrs| %>
+  <% vmrs.each do |vmr_ip| %>
+  VMR_IP=<%= vmr_ip %>
 
-echo "Configuring $url as a Shared VMR"
+  echo "Configuring $VMR_IP as a Shared VMR"
 
-#Generate a random password for the file user of this VMR
-fileuser_pwd=`openssl rand -base64 12`
+  #Generate a random password for the file user of this VMR
+  FILEUSER_PWD=`openssl rand -base64 12`
 
-echo "This VMR's file user credentials are : fileuser / $fileuser_pwd"
+  echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-./rs-config-vmr-for-maas --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port plan=shared portSeed=$starting_port fileUserPass=$fileuser_pwd adminPass=$password
+  ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
 
-# TLS not supported for 0.1.x release
-#echo "Uploading server certificate to $url, and installing certificate on Message Router"
-#sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-#./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
+  # TLS not supported for 0.2.x release
+  #echo "Uploading server certificate to $url, and installing certificate on Message Router"
+  #sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
+  #./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
 
-curl -X POST $broker_user:$broker_password@$broker_hostname/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$host\",  \"sempPort\": \"8080\", \"sempUser\": \"$user\", \"sempPassword\": \"$password\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"22\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
 
+  <% end %>
 <% end %>
