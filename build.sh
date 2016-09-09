@@ -20,12 +20,12 @@ function parse_version()
 
 function bump_version_dev()
 {
-  if [ ! -f $USER ]
+  if [ ! -f userVersion ]
   then
-    echo "$major.$minor.$patch-$build_number+dev.$USER.1" > $USER
+    echo "$major.$minor.$patch-$build_number+dev.$USER.1" > userVersion
   fi
 
-  next_dev_version=$(head -n 1 $USER)
+  next_dev_version=$(head -n 1 userVersion)
 
   regex=".+?\.$USER\.([0-9]+)"
   if [[ $next_dev_version =~ $regex ]]
@@ -35,7 +35,7 @@ function bump_version_dev()
     dev_build_number="1"
   fi
 
-  echo "$major.$minor.$patch-$build_number+dev.$USER.$((dev_build_number+1))" > $USER
+  echo "$major.$minor.$patch-$build_number+dev.$USER.$((dev_build_number+1))" > userVersion
 }
 
 function bump_version_build()
