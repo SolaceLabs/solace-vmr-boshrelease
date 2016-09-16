@@ -2,6 +2,9 @@
 
 set -e
 
+sudo chmod +x extractIpPort.rb
+cp /var/vcap/jobs/config_vmr/bin/extractIpPort.rb /var/vcap/packages/vmr_config_scripts
+
 cd /var/vcap/packages/vmr_config_scripts
 
 tar zxf vmr_config_scripts.tgz
@@ -74,8 +77,8 @@ do
   fi
 done
 
-# Reset the service broker's database
-curl -X PUT $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/reset/repositories -H "Content-Type: application/json;charset=UTF-8"
+
+MANAGED_ROUTER_JSON_LIST="["
 
 <% if_p("dedicated_vmr_list") do |vmrs| %>
   <% vmrs.each do |vmr_ip| %>
@@ -88,14 +91,10 @@ curl -X PUT $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/reset/reposito
 
   echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-  ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
-
-  # TLS not supported for 0.2.x release
-  #echo "Uploading server certificate to $url, and installing certificate on Message Router"
-  #sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-  #./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
-
-  curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  if [ ! "$MANAGED_ROUTER_JSON_LIST" -eq "[" ]; then
+    MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
+  fi
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
 
   <% end %>
 <% end %>
@@ -111,14 +110,30 @@ curl -X PUT $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/reset/reposito
 
   echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-  ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
-
-  # TLS not supported for 0.2.x release
-  #echo "Uploading server certificate to $url, and installing certificate on Message Router"
-  #sshpass -p "$fileuser_pwd" scp -P $ssh_port server.pem fileuser@$host:/certs
-  #./rs-config-server-cert --cli-username $user --cli-authkey PCF-PoC.pem --cli-password $password $host:$ssh_port certificate="server.pem"
-
-  curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers -d "{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  if [ ! "$MANAGED_ROUTER_JSON_LIST" -eq "[" ]; then
+    MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
+  fi
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
 
   <% end %>
 <% end %>
+
+MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}]"
+
+echo "curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "'"'"${MANAGED_ROUTER_JSON_LIST}"'"'
+
+curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8" | ruby extractIpPort.rb | while read i; do
+   CURRENT_HOST=`echo "$i" | awk '{print $1}'`
+   CURRENT_PORT=`echo "$i" | awk '{print $2}'`
+   CURRENT_PLAN_ID=`echo "$i" | awk '{print $3}'`
+
+   if [ "$CURRENT_PLAN_ID" -eq "9bd51219-9cee-4570-99ab-ebe80d82c854" ]; then
+      echo "Configuring a dedicated VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
+      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+   else
+      echo "Configuring a shared VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
+      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+   fi
+done
+
+curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"

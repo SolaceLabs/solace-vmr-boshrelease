@@ -4,6 +4,7 @@ packages:
 - vmr_config_scripts
 templates:
   config_vmr.sh.erb: bin/run
+  extractIpPort.rb.erb: bin/extractIpPort.rb
 properties:
   dedicated_vmr_list:
     description: 'List of dedicated VMRs (comma delimited).'
