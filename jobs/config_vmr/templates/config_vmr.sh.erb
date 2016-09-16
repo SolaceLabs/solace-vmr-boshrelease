@@ -88,10 +88,10 @@ MANAGED_ROUTER_JSON_LIST="["
 
   echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-  if [ ! "$MANAGED_ROUTER_JSON_LIST" -eq "[" ]; then
+  if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"
 
   <% end %>
 <% end %>
@@ -107,10 +107,10 @@ MANAGED_ROUTER_JSON_LIST="["
 
   echo "This VMR's file user credentials are : fileuser / $FILEUSER_PWD"
 
-  if [ ! "$MANAGED_ROUTER_JSON_LIST" -eq "[" ]; then
+  if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"  -H "Content-Type: application/json;charset=UTF-8"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"
 
   <% end %>
 <% end %>
