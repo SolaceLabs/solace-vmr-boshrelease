@@ -2,9 +2,6 @@
 
 set -e
 
-sudo chmod +x extractIpPort.rb
-cp /var/vcap/jobs/config_vmr/bin/extractIpPort.rb /var/vcap/packages/vmr_config_scripts
-
 cd /var/vcap/packages/vmr_config_scripts
 
 tar zxf vmr_config_scripts.tgz
@@ -122,7 +119,7 @@ MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}]"
 
 echo "curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "'"'"${MANAGED_ROUTER_JSON_LIST}"'"'
 
-curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8" | ruby extractIpPort.rb | while read i; do
+curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8" | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while read i; do
    CURRENT_HOST=`echo "$i" | awk '{print $1}'`
    CURRENT_PORT=`echo "$i" | awk '{print $2}'`
    CURRENT_PLAN_ID=`echo "$i" | awk '{print $3}'`
