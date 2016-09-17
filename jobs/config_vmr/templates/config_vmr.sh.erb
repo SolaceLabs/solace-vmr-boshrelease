@@ -26,7 +26,7 @@ echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
 
 # Installs perl modules required to run rs scripts, and jq so we
 # are able to easily parse JSON from this bash script
-sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass
+sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass ruby
 
 STARTING_PORT=<%= properties.starting_port %>
 BROKER_USER=<%= properties.broker_user %>
@@ -119,12 +119,14 @@ MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}]"
 
 echo "curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "'"'"${MANAGED_ROUTER_JSON_LIST}"'"'
 
-curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8" | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while read i; do
+RESPONSE=`curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8"`
+echo "Service Broker: $RESPONSE"
+echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while read i; do
    CURRENT_HOST=`echo "$i" | awk '{print $1}'`
    CURRENT_PORT=`echo "$i" | awk '{print $2}'`
    CURRENT_PLAN_ID=`echo "$i" | awk '{print $3}'`
 
-   if [ "$CURRENT_PLAN_ID" -eq "9bd51219-9cee-4570-99ab-ebe80d82c854" ]; then
+   if [ "$CURRENT_PLAN_ID" = "9bd51219-9cee-4570-99ab-ebe80d82c854" ]; then
       echo "Configuring a dedicated VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
       ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
    else
