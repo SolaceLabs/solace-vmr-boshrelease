@@ -24,6 +24,10 @@ case $1 in
         2>>$LOG_DIR/$JOB_NAME.stderr.log
 
     # tag it to latest so we can find the image
+    if [ ! -z "`docker images -q solace-app:latest`" ]
+    then
+        docker rmi solace-app:latest
+    fi
     IMAGE_ID=`docker images -q solace-app`
     docker tag $IMAGE_ID solace-app:latest
 

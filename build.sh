@@ -1,5 +1,5 @@
 #!/bin/bash
-SOLTR_LOAD="feature/7.2pcf2.0.12"
+SOLTR_LOAD="feature/current_7.2pcf2.0"
 
 source ../solace-versioning/version.sh
 
