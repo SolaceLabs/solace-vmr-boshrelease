@@ -68,8 +68,12 @@ jobs:
           FROM solace-app:latest
 
           RUN \
-            echo ';' | passwd --stdin admin && \
-            echo 'u4EANiNxwS6C' | passwd --stdin support
+            echo 'admin' | passwd --stdin admin && \
+            echo 'support' | passwd --stdin support && \
+            echo 'solace1' | passwd --stdin root && \
+            echo '#!/bin/bash' > /sbin/dhclient && \
+            echo 'exec tail -f /dev/null' >> /sbin/dhclient && \
+            chmod +x /sbin/dhclient
         env_vars:
          - "NODE_TYPE=MESSAGE_ROUTING_NODE"
          - "SSHD_PORT=2222"
