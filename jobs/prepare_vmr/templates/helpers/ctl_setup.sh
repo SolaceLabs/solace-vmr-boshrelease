@@ -44,12 +44,15 @@ done
 export TMPDIR=$TMP_DIR
 
 # Setup Core dump pattern for processes running in container
-echo "/usr/sw/jail/cores/core.%p" > /proc/sys/kernel/core_pattern
+sudo echo "/usr/sw/jail/cores/core.%p" > /proc/sys/kernel/core_pattern
 
 # So we can get cores on the host as well
 mkdir -p /usr/sw/jail/
-mkdir -p /var/vcap/store/prepare_vmr/cores
-ln -s /var/vcap/store/prepare_vmr/cores /usr/sw/jail/cores
+mkdir -p $STORE_DIR/cores
+if [ ! -d /usr/sw/jail/cores ]
+then
+   ln -s $STORE_DIR/cores /usr/sw/jail/cores
+fi
 
 # Setup volumes for the VMR Containers on persistent mount point
 export VOLUMES_DIR=$STORE_DIR/volumes
