@@ -1,7 +1,7 @@
 #!/bin/bash
-SOLTR_LOAD="feature/current_7.2pcf2.0"
 
 source ../solace-versioning/version.sh
+set_version
 
 mkdir -p blobs/vmr_config_scripts
 mkdir -p blobs/soltr_docker
