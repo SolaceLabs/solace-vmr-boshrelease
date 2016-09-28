@@ -68,8 +68,12 @@ jobs:
           FROM solace-app:latest
 
           RUN \
-            echo 'u4EANiNxwS6C' | passwd --stdin admin && \
-            echo 'u4EANiNxwS6C' | passwd --stdin support
+            echo 'admin' | passwd --stdin admin && \
+            echo 'support' | passwd --stdin support && \
+            echo 'solace1' | passwd --stdin root && \
+            echo '#!/bin/bash' > /sbin/dhclient && \
+            echo 'exec tail -f /dev/null' >> /sbin/dhclient && \
+            chmod +x /sbin/dhclient
         env_vars:
          - "NODE_TYPE=MESSAGE_ROUTING_NODE"
          - "SSHD_PORT=2222"
@@ -78,6 +82,11 @@ jobs:
         privileged: true
         uts: host
         volumes:
+        - /var/vcap/store/prepare_vmr/volumes/jail:/usr/sw/jail
+        - /var/vcap/store/prepare_vmr/volumes/var:/usr/sw/var
+        - /var/vcap/store/prepare_vmr/volumes/internalSpool:/usr/sw/internalSpool
+        - /var/vcap/store/prepare_vmr/volumes/adbBackup:/usr/sw/adb
+        - /var/vcap/store/prepare_vmr/volumes/adb:/usr/sw/internalSpool/softAdb
         - /dev/shm:/dev/shm
 - name: vmr-config-job
   templates:

@@ -31,7 +31,6 @@ do
 done
 
 # Setup log, run and tmp folders
-
 export RUN_DIR=/var/vcap/sys/run/$JOB_NAME
 export LOG_DIR=/var/vcap/sys/log/$JOB_NAME
 export TMP_DIR=/var/vcap/sys/tmp/$JOB_NAME
@@ -44,6 +43,13 @@ do
 done
 export TMPDIR=$TMP_DIR
 
+# Setup Core dump pattern for processes running in container
+echo "/usr/sw/jail/cores/core.%p" > /proc/sys/kernel/core_pattern
+
+# So we can get cores on the host as well
+mkdir -p /usr/sw/jail/
+mkdir -p /var/vcap/store/prepare_vmr/cores
+ln -s /var/vcap/store/prepare_vmr/cores /usr/sw/jail/cores
 
 # Setup volumes for the VMR Containers on persistent mount point
 export VOLUMES_DIR=$STORE_DIR/volumes
@@ -55,7 +61,7 @@ export ADB_DIR=$VOLUMES_DIR/adb
 for dir in $JAIL_DIR $VAR_DIR $INTERNAL_SPOOL_DIR $ADB_BACKUP_DIR $ADB_DIR
 do
   mkdir -p ${dir}
-  chown vcap:vcap ${dir}
+  chown 500:501 ${dir}
   chmod 775 ${dir}
 done
 
