@@ -18,6 +18,8 @@ case $1 in
     # store pid in $PIDFILE
     echo $$ > $PIDFILE
 
+    sudo apt-get install -y jq
+
     time docker \
       load -i /var/vcap/packages/vmr_image/soltr-docker.tgz
         >>$LOG_DIR/$JOB_NAME.stdout.log \
@@ -28,7 +30,11 @@ case $1 in
     then
         docker rmi solace-app:latest
     fi
-    IMAGE_ID=`docker images -q solace-app`
+    tar zxf /var/vcap/packages/vmr_image/soltr-docker.tgz manifest.json
+    IMAGE_NAME=`jq -r '.[0].RepoTags[0]' manifest.json`
+    echo "Installing $IMAGE_NAME"
+    IMAGE_ID=`docker images -q $IMAGE_NAME`
+    echo "Id for $IMAGE_NAME is $IMAGE_ID.  Tagging as solace-app:latest."
     docker tag $IMAGE_ID solace-app:latest
 
     # do nothing forever
