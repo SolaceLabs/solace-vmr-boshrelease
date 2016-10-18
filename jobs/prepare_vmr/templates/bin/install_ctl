@@ -6,6 +6,8 @@ set -u # report the usage of uninitialized variables
 # Setup env vars and folders for the webapp_ctl script
 source /var/vcap/jobs/prepare_vmr/helpers/ctl_setup.sh 'prepare_vmr'
 
+JQ=/var/vcap/packages/jq/jq
+
 export PORT=${PORT:-5000}
 export LANG=en_US.UTF-8
 export DOCKER_HOST=unix:///var/vcap/sys/run/docker/docker.sock
@@ -18,8 +20,6 @@ case $1 in
     # store pid in $PIDFILE
     echo $$ > $PIDFILE
 
-    sudo apt-get install -y jq
-
     time docker \
       load -i /var/vcap/packages/vmr_image/soltr-docker.tgz
         >>$LOG_DIR/$JOB_NAME.stdout.log \
@@ -31,7 +31,7 @@ case $1 in
         docker rmi solace-app:latest
     fi
     tar zxf /var/vcap/packages/vmr_image/soltr-docker.tgz manifest.json
-    IMAGE_NAME=`jq -r '.[0].RepoTags[0]' manifest.json`
+    IMAGE_NAME=`$JQ -r '.[0].RepoTags[0]' manifest.json`
     echo "Installing $IMAGE_NAME"
     IMAGE_ID=`docker images -q $IMAGE_NAME`
     echo "Id for $IMAGE_NAME is $IMAGE_ID.  Tagging as solace-app:latest."

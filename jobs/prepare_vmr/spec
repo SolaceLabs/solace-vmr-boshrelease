@@ -1,6 +1,6 @@
 ---
 name: prepare_vmr
-packages: [vmr_image]
+packages: [vmr_image, jq]
 templates:
   bin/monit_debugger: bin/monit_debugger
   bin/install_ctl: bin/install_ctl

@@ -1,0 +1,5 @@
+# abort script on any command that exit with a non zero value
+set -e
+
+cp -f jq/jq-linux64 ${BOSH_INSTALL_TARGET}/jq
+chmod +x ${BOSH_INSTALL_TARGET}/jq
