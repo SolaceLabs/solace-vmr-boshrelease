@@ -12,8 +12,6 @@ export HOME=`pwd`
 chmod +x run-router-script
 chmod +x rs-config-vmr-for-maas
 chmod +x rs-config-server-cert
-chown root:root PCF-PoC.pem
-chmod 600 PCF-PoC.pem
 
 echo "DEDICATED_VMR_LIST = <%= properties.dedicated_vmr_list %>"
 echo "SHARED_VMR_LIST = <%= properties.shared_vmr_list %>"
@@ -128,10 +126,10 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
 
    if [ "$CURRENT_PLAN_ID" = "9bd51219-9cee-4570-99ab-ebe80d82c854" ]; then
       echo "Configuring a dedicated VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
-      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER  --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
    else
       echo "Configuring a shared VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
-      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-authkey PCF-PoC.pem --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+      ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
    fi
 done
 
