@@ -131,6 +131,10 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
       echo "Configuring a shared VMR... ${CURRENT_HOST}:${CURRENT_PORT}"
       ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
    fi
+
+   # Install the server certificate on this VMR
+   sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT server.pem fileuser@$CURRENT_HOST:/certs
+   ./rs-config-server-cert --cli-username $user --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT certificate="server.pem"
 done
 
 curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"
