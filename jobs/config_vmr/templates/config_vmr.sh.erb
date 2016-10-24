@@ -6,6 +6,7 @@ cd /var/vcap/packages/vmr_config_scripts
 
 tar zxf vmr_config_scripts.tgz
 cd src/vmr_config_scripts
+
 export PATH=`pwd`:$PATH
 export HOME=`pwd`
 
@@ -30,14 +31,9 @@ STARTING_PORT=<%= properties.starting_port %>
 BROKER_USER=<%= properties.broker_user %>
 BROKER_PASSWORD=<%= properties.broker_password %>
 BROKER_HOSTNAME=<%= properties.broker_hostname %>
-CERT_PEM=<%= properties.cert_pem %>
-KEY_PEM=<%= properties.private_key_pem %>
 SSH_PORT=<%= properties.ssh_port %>
 ADMIN_USER=admin
 ADMIN_PASSWORD=<%= properties.admin_password %>
-
-echo $CERT_PEM > server.pem
-echo $KEY_PEM >> server.pem
 
 <% if_p("dedicated_vmr_list") do |vmrs| %>
   echo "List of dedicated VMRs:"
@@ -142,7 +138,7 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
 
    # Install the server certificate on this VMR
    echo "Installing Server Certificate on ${CURRENT_HOST}:${CURRENT_PORT}..."
-   sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT server.pem fileuser@$CURRENT_HOST:/certs
+   sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
    ./rs-config-server-cert --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT certificate="server.pem"
    echo "Done."
 done
