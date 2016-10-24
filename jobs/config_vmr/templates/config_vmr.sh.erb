@@ -30,9 +30,14 @@ STARTING_PORT=<%= properties.starting_port %>
 BROKER_USER=<%= properties.broker_user %>
 BROKER_PASSWORD=<%= properties.broker_password %>
 BROKER_HOSTNAME=<%= properties.broker_hostname %>
+CERT_PEM=<%= properties.cert_pem %>
+KEY_PEM=<%= properties.private_key_pem %>
 SSH_PORT=<%= properties.ssh_port %>
 ADMIN_USER=admin
 ADMIN_PASSWORD=<%= properties.admin_password %>
+
+echo $CERT_PEM > server.pem
+echo $KEY_PEM >> server.pem
 
 <% if_p("dedicated_vmr_list") do |vmrs| %>
   echo "List of dedicated VMRs:"

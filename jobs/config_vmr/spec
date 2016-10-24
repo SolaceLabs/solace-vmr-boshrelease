@@ -22,3 +22,7 @@ properties:
     description: 'Password to access the VMR.'
   ssh_port:
     description: 'SSH Port of the VMRs.'
+  private_key_pem:
+    description: 'Private key to install on the VMRs'
+  cert_pem:
+    description: 'RSA Server Certificate to install on the VMRs'
