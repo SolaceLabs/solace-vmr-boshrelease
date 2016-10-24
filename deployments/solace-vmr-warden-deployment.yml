@@ -73,6 +73,7 @@ jobs:
             echo 'solace1' | passwd --stdin root && \
             echo '#!/bin/bash' > /sbin/dhclient && \
             echo 'exec tail -f /dev/null' >> /sbin/dhclient && \
+            echo '3a:40:d5:42:f4:86' > /usr/sw/.nodeIdentifyingMacAddr && \
             chmod +x /sbin/dhclient
         env_vars:
          - "NODE_TYPE=MESSAGE_ROUTING_NODE"
@@ -103,7 +104,7 @@ jobs:
     broker_user: 'test_user-1212'
     broker_password: 'test_password-2323'
     broker_hostname: '10.254.50.4'
-    admin_password: 'u4EANiNxwS6C'
+    admin_password: 'admin'
     ssh_port: 2222
     dedicated_vmr_list:
       - 10.244.0.3
