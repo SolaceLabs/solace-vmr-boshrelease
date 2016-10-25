@@ -140,6 +140,8 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
    echo "Installing Server Certificate on ${CURRENT_HOST}:${CURRENT_PORT}..."
    sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
    ./rs-config-server-cert --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT certificate="server.pem"
+   sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
+   echo "rm certs/server.pem" | sudo SSHPASS=$FILEUSER_PWD sshpass -e sftp -P 2222 fileuser@$CURRENT_HOST
    echo "Done."
 done
 
