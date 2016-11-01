@@ -104,6 +104,10 @@ end
         max-connections 200
         max-subscriptions 100000
 
+
+        # SSL allow-downgrade-to-plain-text
+        ssl allow-downgrade-to-plain-text
+
         # Setup max 200 SMF connections for this VPN and enable SMF for VPN
         service smf max-connections 200
         no service smf plain-text shutdown
