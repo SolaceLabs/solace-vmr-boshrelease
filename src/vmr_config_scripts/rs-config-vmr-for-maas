@@ -319,6 +319,7 @@ end
         exit
     max-connections 1000
     max-subscriptions 500000
+    ssl allow-downgrade-to-plain-text
     service smf max-connections 1000
     no service smf plain-text shutdown
     no service smf ssl shutdown
