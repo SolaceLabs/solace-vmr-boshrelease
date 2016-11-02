@@ -136,6 +136,7 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
       echo "Done."
    fi
 
+<% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
    # Install the server certificate on this VMR
    echo "Installing Server Certificate on ${CURRENT_HOST}:${CURRENT_PORT}..."
    sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
@@ -143,6 +144,10 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
    sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
    echo "rm certs/server.pem" | sudo SSHPASS=$FILEUSER_PWD sshpass -e sftp -P 2222 fileuser@$CURRENT_HOST
    echo "Done."
+<% else %>
+   echo "There is no certificate."
+<% end %>
+
 done
 
 curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"
