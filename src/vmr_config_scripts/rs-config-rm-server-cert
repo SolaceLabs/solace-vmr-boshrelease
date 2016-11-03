@@ -1,0 +1,15 @@
+#!/usr/bin/env run-router-script
+#
+#  Configure the Solace Router's server certificate
+#
+<%args>
+</%args>
+
+<%script type = "cli">
+
+home
+enable
+configure
+
+ssl
+no server-certificate

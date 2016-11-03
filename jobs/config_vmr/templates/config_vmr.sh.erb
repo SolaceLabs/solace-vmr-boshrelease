@@ -144,7 +144,11 @@ echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb | while rea
    sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $CURRENT_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$CURRENT_HOST:/certs
    echo "rm certs/server.pem" | sudo SSHPASS=$FILEUSER_PWD sshpass -e sftp -P 2222 fileuser@$CURRENT_HOST
    echo "Done."
-<% end %>
+<% end.else do %>
+   echo "Disabling Server Certificate on ${CURRENT_HOST}:${CURRENT_PORT}..."
+   ./rs-config-rm-server-cert --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT
+   echo "Done."
+<% end%>
 
 done
 
