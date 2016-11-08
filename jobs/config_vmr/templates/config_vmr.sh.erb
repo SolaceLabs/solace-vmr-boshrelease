@@ -164,7 +164,7 @@ while read i; do
      removeFromList "${EXISTING_SHARED_VMRS}" ${CURRENT_HOST}
      EXISTING_SHARED_VMRS="${output}"
    fi
-done <<< "$(echo `echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb`)"
+done < <(echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb)
 
 echo "Updating configuration for these Large-VMR hosts which already existed before this deployment: $EXISTING_DEDICATED_VMRS."
 for CURRENT_HOST in $EXISTING_DEDICATED_VMRS; do
