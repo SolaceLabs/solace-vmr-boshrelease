@@ -3,7 +3,7 @@
 #  Configure MQTT for the router
 #
 <%args>
-plan       => "shared" # The VMR plan type. Either 'shared' or 'dedicated'
+poolName   => "Medium-VMR" # The VMR pool name.  Either "Medium-VMR" "Large-VMR" or "Community-VMR"
 portSeed   => 7000     # A seed port where Solace services will begin port allocation.
 fileUserPass => "u4EANiNxwS6C"
 adminPass => "u4EANiNxwS6C"
@@ -30,21 +30,56 @@ username admin
 change-password <% $adminPass %>
 end
 
-%if ($plan eq "shared") 
+%my $countClientUsernames;
+%my $countVpns;
+%my $maxConnections;
+%my $maxSubscriptions;
+%my $maxSpoolUsage;
+%my $maxTransactions;
+%my $maxTransactedSessions;
+%my $maxEndpoints;
+
+%if ($poolName eq "Medium-VMR")
 %{
-%   my $countClientUsernames = 20;
+%   $maxConnections = 200;
+%   $maxSubscriptions = 100000;
+%   $countClientUsernames = 20;
+%   $countVpns = 5;
+%   $maxSpoolUsage = 4000;
+%   $maxTransactedSessions = 200;
+%   $maxTransactions = 1000;
+%   $maxEndpoints = 200;
+%}
+%if ($poolName eq "Large-VMR")
+%{
+%   $maxConnections = 1000;
+%   $maxSubscriptions = 500000;
+%   $countClientUsernames = 100;
+%   $countVpns = 1;
+%   $maxSpoolUsage = 20000;
+%   $maxTransactedSessions = 1000;
+%   $maxTransactions = 5000;
+%   $maxEndpoints = 1000;
+%}
+%if ($poolName eq "Community-VMR")
+%{
+%   $maxConnections = 100;
+%   $maxSubscriptions = 500000;
+%   $countClientUsernames = 98;
+%   $countVpns = 1;
+%   $maxSpoolUsage = 4000;
+%   $maxTransactedSessions = 1000;
+%   $maxTransactions = 5000;
+%   $maxEndpoints = 100;
+%}
 
-    # For Shared VMR Plans, must do the following
-    # 1) Must disable default message VPN
-    # 2) Must create the 5 required VPNs with configuration
-
-    # Disable default message VPN.
     home
     enable
     configure
+
     message-vpn "default"
         shutdown
-    end 
+    end
 
     home
     enable
@@ -73,15 +108,15 @@ end
     # VPN Specific ports starts at VpnSeedPort.  VpnSeedPort = (SeedPort + 6) + (vpnId-1)*(portsPerVpn)
     # portsPerVpn = 6  (2 Rests, and 4 Mqtt ports)
 
-    # Create 5 required VPNs
-%   for my $vpnId (1 .. 5)
+    # Create VPNs
+%   for my $vpnId (1 .. $countVpns)
 %   {
 %       my $msgVpnName = "v" . sprintf("%03d", $vpnId);
 
         home
         enable
         configure
-    
+
         ! pragma:interpreter:ignore-already-exists
         create message-vpn <% $msgVpnName %>
         ! pragma:interpreter:no-ignore-already-exists
@@ -101,37 +136,34 @@ end
               authorization-type "internal"
               exit
             exit
-        max-connections 200
-        max-subscriptions 100000
 
+        max-connections <% $maxConnections %>
+        max-subscriptions <% $maxSubscriptions %>
 
-        # SSL allow-downgrade-to-plain-text
         ssl allow-downgrade-to-plain-text
 
-        # Setup max 200 SMF connections for this VPN and enable SMF for VPN
-        service smf max-connections 200
+        service smf max-connections <% $maxConnections %>
         no service smf plain-text shutdown
         no service smf ssl shutdown
 
-        # Setup max 200 web-transport connections for this VPN
-        service web-transport max-connections 200
+        service web-transport max-connections <% $maxConnections %>
 
         # REST
         # plain-text port : VpnSeedPort
         # ssl port : VpnSeedPort + 1
-        service rest incoming max-connections 200
+        service rest incoming max-connections <% $maxConnections %>
         service rest incoming listen-port <% $portSeed++ %>
         no service rest incoming plain-text shutdown
         service rest incoming listen-port <% $portSeed++ %> ssl
         no service rest incoming ssl shutdown
-        service rest outgoing max-connections 200
+        service rest outgoing max-connections <% $maxConnections %>
 
         # MQTT
         # plain-text port : VpnSeedPort + 2
         # ssl port : VpnSeedPort + 3
         # web port : VpnSeedPort + 4
         # web ssl port : VpnSeedPort + 5
-        service mqtt max-connections 200
+        service mqtt max-connections <% $maxConnections %>
         service mqtt listen-port <% $portSeed++ %>
         no service mqtt plain-text shutdown
         service mqtt listen-port <% $portSeed++ %> ssl
@@ -142,43 +174,43 @@ end
         no service mqtt websocket-secure shutdown
         exit
 
+
         message-spool message-vpn <% $msgVpnName %>
-          max-spool-usage 4000
+          max-spool-usage <% $maxSpoolUsage %>
           no allow-unknown-publisher-flow
-          max-transacted-sessions 200
-          max-transactions 1000
-          max-endpoints 200
-          max-egress-flows 200
-          max-ingress-flows 200
-          exit
-      
+          max-transacted-sessions <% $maxTransactedSessions %>
+          max-transactions <% $maxTransactions %>
+          max-endpoints <% $maxEndpoints %>
+          max-egress-flows <% $maxEndpoints %>
+          max-ingress-flows <% $maxEndpoints %>
+        exit
+
         client-profile "default" message-vpn <% $msgVpnName %>
-          service smf max-connections-per-client-username 200
-          service web-transport max-connections-per-client-username 200
-          max-connections-per-client-username 200
-          max-subscriptions 100000
+          service smf max-connections-per-client-username <% $maxConnections %>
+          service web-transport max-connections-per-client-username <% $maxConnections %>
+          max-connections-per-client-username <% $maxConnections %>
+          max-subscriptions <% $maxSubscriptions %>
           message-spool allow-guaranteed-endpoint-create
           message-spool allow-guaranteed-message-receive
           message-spool allow-guaranteed-message-send
           message-spool allow-transacted-sessions
           message-spool allow-cut-through-forwarding
-          message-spool max-transacted-sessions 200
-          message-spool max-transactions 1000
-          message-spool max-endpoints-per-client-username 200
-          message-spool max-egress-flows 200
-          message-spool max-ingress-flows 200
-          exit
-
+          message-spool max-transacted-sessions <% $maxTransactedSessions %>
+          message-spool max-transactions <% $maxTransactions %>
+          message-spool max-endpoints-per-client-username <% $maxEndpoints %>
+          message-spool max-egress-flows <% $maxEndpoints %>
+          message-spool max-ingress-flows <% $maxEndpoints %>
+        exit
 
         acl-profile "default" message-vpn <% $msgVpnName %>
           client-connect default-action "allow"
           publish-topic default-action "allow"
           subscribe-topic default-action "allow"
-          exit
+        exit
 
         client-username "default" message-vpn <% $msgVpnName %>
           shutdown
-          exit
+        exit
 
 %       for my $cuId (1 .. $countClientUsernames)
 %       {
@@ -186,13 +218,14 @@ end
               acl-profile "default"
               client-profile "default"
               no shutdown
-              exit
+            exit
 %       }
 
-        ! Create JNDI: 
+        ! Create JNDI:
         jndi message-vpn <% $msgVpnName %>
           no shutdown
-          
+          no connection-factory /jms/cf/default
+
         ! pragma:interpreter:ignore-already-exists
           create connection-factory "<% $msgVpnName %>.jndi.cf001"
         ! pragma:interpreter:no-ignore-already-exists
@@ -215,8 +248,8 @@ end
             exit
           exit
 
-          
-        ! Enable Message Vpn: 
+
+        ! Enable Message Vpn:
         message-vpn <% $msgVpnName %>
           no shutdown
           replication
@@ -238,7 +271,7 @@ end
             exit
           exit
         exit
-        
+
         authentication
           replace-duplicate-client-connections
           user-class cli
@@ -257,208 +290,6 @@ end
             no radius-domain
             exit
           exit
-        
+
         end
 %   }
-%} else {
- 
-%   my $countClientUsernames = 100;
-
-    # Configure for dedicated access.
-    home
-    enable
-    configure
-
-    # Disable default message VPN, and create VPN v001
-    message-vpn "default"
-        shutdown
-    end
-
-    home
-    enable
-    configure
-
-    # SMF ports :
-    #   plain-text port: SeedPort
-    #   compressed port: SeedPort + 1
-    #   routing-control port: SeedPort + 2
-    #   ssl port : SeedPort + 3
-    service smf shutdown
-    service smf listen-port <% $portSeed++ %>
-    service smf listen-port <% $portSeed++ %> compressed
-    service smf listen-port <% $portSeed++ %> routing-control
-    service smf listen-port <% $portSeed++ %> ssl
-    no service smf shutdown
-
-    # SMF Web-transport ports :
-    #   plain-text port: SeedPort + 4
-    #   plain-text port: SeedPort + 5
-    service web-transport shutdown
-    service web-transport listen-port <% $portSeed++ %>
-    service web-transport listen-port <% $portSeed++ %> ssl
-    no service web-transport shutdown
-
-    ! pragma:interpreter:ignore-already-exists
-    create message-vpn "v001"
-    ! pragma:interpreter:no-ignore-already-exists
-    exit
-
-    message-vpn "v001"
-    authentication
-        user-class "client"
-          basic auth-type "internal"
-          no basic radius-domain
-          no basic shutdown
-          exit
-    exit
-    authorization
-        user-class "client"
-          ldap group-membership-attribute-name "memberOf"
-          authorization-type "internal"
-          exit
-        exit
-    max-connections 1000
-    max-subscriptions 500000
-    ssl allow-downgrade-to-plain-text
-    service smf max-connections 1000
-    no service smf plain-text shutdown
-    no service smf ssl shutdown
-    service web-transport max-connections 1000
-    service rest incoming max-connections 1000
-    service rest incoming listen-port <% $portSeed++ %>
-    no service rest incoming plain-text shutdown
-    service rest incoming listen-port <% $portSeed++ %> ssl
-    no service rest incoming ssl shutdown
-    service rest outgoing max-connections 1000
-    service mqtt max-connections 200
-    service mqtt listen-port <% $portSeed++ %>
-    no service mqtt plain-text shutdown
-    service mqtt listen-port <% $portSeed++ %> ssl
-    no service mqtt ssl shutdown
-    service mqtt listen-port <% $portSeed++ %> web
-    no service mqtt websocket shutdown
-    service mqtt listen-port <% $portSeed++ %> ssl web
-    no service mqtt websocket-secure shutdown
-    exit
-
-    message-spool message-vpn "v001"
-      max-spool-usage 20000
-      no allow-unknown-publisher-flow
-      max-transacted-sessions 1000
-      max-transactions 5000
-      max-endpoints 1000
-      max-egress-flows 1000
-      max-ingress-flows 1000
-      exit
-  
-    client-profile "default" message-vpn "v001"
-      service smf max-connections-per-client-username 1000
-      service web-transport max-connections-per-client-username 1000
-      max-connections-per-client-username 1000
-      max-subscriptions 500000
-      message-spool allow-guaranteed-endpoint-create
-      message-spool allow-guaranteed-message-receive
-      message-spool allow-guaranteed-message-send
-      message-spool allow-transacted-sessions
-      message-spool allow-cut-through-forwarding
-      message-spool max-transacted-sessions 1000
-      message-spool max-transactions 5000
-      message-spool max-endpoints-per-client-username 1000
-      message-spool max-egress-flows 1000
-      message-spool max-ingress-flows 1000
-      exit
-
-
-    acl-profile "default" message-vpn "v001"
-      client-connect default-action "allow"
-      publish-topic default-action "allow"
-      subscribe-topic default-action "allow"
-      exit
-
-    client-username "default" message-vpn "v001"
-      shutdown
-      exit
-
-%       for my $cuId (1 .. $countClientUsernames)
-%       {
-        create client-username "v001.cu<% sprintf("%06d", $cuId) %>" message-vpn "v001"
-          acl-profile "default"
-          client-profile "default"
-          no shutdown
-          exit
-%       }
-
-    ! Create JNDI: 
-    jndi message-vpn "v001"
-      no shutdown
-      no connection-factory /jms/cf/default
-      
-    ! pragma:interpreter:ignore-already-exists
-      create connection-factory "v001.jndi.cf001"
-    ! pragma:interpreter:no-ignore-already-exists
-        property-list "messaging-properties"
-          property "default-delivery-mode" "persistent"
-          property "text-msg-xml-payload" "true"
-          property "xa" "true"
-          exit
-        property-list "transport-properties"
-          property "reconnect-retries" "20"
-          property "reconnect-retry-wait" "3000"
-          property "connect-retries-per-host" "5"
-          property "connect-retries" "1"
-          property "keep-alive-enabled" "true"
-          property "keep-alive-interval" "3000"
-          property "keep-alive-count-max" "3"
-          property "tcp-no-delay" "false"
-          property "direct-transport" "false"
-          exit
-        exit
-      exit
-
-      
-    ! Enable Message Vpn: 
-    message-vpn "v001"
-      no shutdown
-      replication
-        state "standby"
-        shutdown
-        exit
-      exit
-
-    create username "v001-mgmt" password temppassword cli
-    end
-    configure
-    username "v001-mgmt"
-      global-access-level "none"
-      message-vpn
-        default-access-level "none"
-        create access-level-exception "default"
-        access-level "read-write"
-        exit
-      exit
-    exit
-    
-    authentication
-      replace-duplicate-client-connections
-      user-class cli
-        access-level
-          default
-            global-access-level "none"
-            message-vpn
-              default-access-level "none"
-              exit
-            exit
-          ldap
-            no group-membership-attribute-name
-            exit
-          exit
-        auth-type "internal"
-        no radius-domain
-        exit
-      exit
-
-    
-    end
-
-
-%}

@@ -13,17 +13,17 @@ function removeFromList {
 }
 function setupTls {
   <% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
-     # Install the server certificate on this VMR
-     echo "Installing Server Certificate on ${VMR_IP}:${SSH_PORT}..."
-     sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $SSH_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$VMR_IP:/certs
-     ./rs-config-server-cert --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT certificate="server.pem"
-     sudo SSHPASS=$FILEUSER_PWD sshpass -e scp -P $SSH_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$VMR_IP:/certs
-     echo "rm certs/server.pem" | sudo SSHPASS=$FILEUSER_PWD sshpass -e sftp -P 2222 fileuser@$VMR_IP
-     echo "Done."
+    # Install the server certificate on this VMR
+    echo "Installing Server Certificate on ${VMR_IP}:${SSH_PORT}..."
+    sudo SSHPASS="$FILEUSER_PWD" sshpass -e scp -P $SSH_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$VMR_IP:/certs
+    ./rs-config-server-cert --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $VMR_IP:$SSH_PORT certificate="server.pem"
+    sudo SSHPASS="$FILEUSER_PWD" sshpass -e scp -P $SSH_PORT /var/vcap/jobs/config_vmr/config/server.pem fileuser@$VMR_IP:/certs
+    echo "rm certs/server.pem" | sudo SSHPASS="$FILEUSER_PWD" sshpass -e sftp -P 2222 fileuser@$VMR_IP
+    echo "Done."
   <% end.else do %>
-     echo "Disabling Server Certificate on ${VMR_IP}:${SSH_PORT}..."
-     ./rs-config-rm-server-cert --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $VMR_IP:$SSH_PORT
-     echo "Done."
+    echo "Disabling Server Certificate on ${VMR_IP}:${SSH_PORT}..."
+    ./rs-config-rm-server-cert --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $VMR_IP:$SSH_PORT
+    echo "Done."
   <% end%>
 }
 
@@ -41,8 +41,9 @@ chmod +x run-router-script
 chmod +x rs-config-vmr-for-maas
 chmod +x rs-config-server-cert
 
-echo "DEDICATED_VMR_LIST = <%= properties.dedicated_vmr_list %>"
-echo "SHARED_VMR_LIST = <%= properties.shared_vmr_list %>"
+echo "LARGE_VMR_LIST = <%= properties.large_vmr_list %>"
+echo "MEDIUM_VMR_LIST = <%= properties.medium_vmr_list %>"
+echo "COMMUNITY_VMR_LIST = <%= properties.community_vmr_list %>"
 echo "STARTING_PORT = <%= properties.starting_port %>"
 echo "BROKER_USER = <%= properties.broker_user %>"
 echo "BROKER_PASSWORD = <%= properties.broker_password %>"
@@ -56,24 +57,31 @@ sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass ruby
 
 STARTING_PORT=<%= properties.starting_port %>
 BROKER_USER=<%= properties.broker_user %>
-BROKER_PASSWORD=<%= properties.broker_password %>
+BROKER_PASSWORD='<%= properties.broker_password %>'
 BROKER_HOSTNAME=<%= properties.broker_hostname %>
 SSH_PORT=<%= properties.ssh_port %>
 ADMIN_USER=admin
-ADMIN_PASSWORD=<%= properties.admin_password %>
+ADMIN_PASSWORD='<%= properties.admin_password %>'
 # Let's keep it simple, fileuser will be using admin password.  Makes it easier to change the TLS configs for already
 # configured VMRs, as we don't have to remember a randomly chosen password.
 FILEUSER_PWD=$ADMIN_PASSWORD
 
-<% if_p("dedicated_vmr_list") do |vmrs| %>
-  echo "List of dedicated VMRs:"
+<% if_p("large_vmr_list") do |vmrs| %>
+  echo "List of Large-VMRs:"
   <% for vmr in vmrs %>
     echo <%= vmr %>
   <% end %>
 <% end %>
 
-<% if_p("shared_vmr_list") do |vmrs| %>
-  echo "List of shared VMRs:"
+<% if_p("medium_vmr_list") do |vmrs| %>
+  echo "List of Medium-VMRs:"
+  <% for vmr in vmrs %>
+    echo <%= vmr %>
+  <% end %>
+<% end %>
+
+<% if_p("community_vmr_list") do |vmrs| %>
+  echo "List of Community-VMRs:"
   <% for vmr in vmrs %>
     echo <%= vmr %>
   <% end %>
@@ -104,32 +112,47 @@ do
   fi
 done
 
-EXISTING_DEDICATED_VMRS=""
+EXISTING_LARGE_VMRS=""
 MANAGED_ROUTER_JSON_LIST="["
 
-<% if_p("dedicated_vmr_list") do |vmrs| %>
+<% if_p("large_vmr_list") do |vmrs| %>
   <% vmrs.each do |vmr_ip| %>
   VMR_IP=<%= vmr_ip %>
 
   if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"9bd51219-9cee-4570-99ab-ebe80d82c854\", \"sshPort\" : \"$SSH_PORT\" }"
-  EXISTING_DEDICATED_VMRS="${EXISTING_DEDICATED_VMRS} ${VMR_IP}"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Large-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  EXISTING_LARGE_VMRS="${EXISTING_LARGE_VMRS} ${VMR_IP}"
 
   <% end %>
 <% end %>
 
-EXISTING_SHARED_VMRS=""
-<% if_p("shared_vmr_list") do |vmrs| %>
+EXISTING_MEDIUM_VMRS=""
+<% if_p("medium_vmr_list") do |vmrs| %>
   <% vmrs.each do |vmr_ip| %>
   VMR_IP=<%= vmr_ip %>
 
   if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"planId\": \"af308299-102f-47a3-acb0-7de72be192bf\", \"sshPort\" : \"$SSH_PORT\" }"
-  EXISTING_SHARED_VMRS="${EXISTING_SHARED_VMRS} ${VMR_IP}"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Medium-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  EXISTING_MEDIUM_VMRS="${EXISTING_MEDIUM_VMRS} ${VMR_IP}"
+
+  <% end %>
+<% end %>
+
+EXISTING_COMMUNITY_VMRS=""
+<% if_p("community_vmr_list") do |vmrs| %>
+  <% vmrs.each do |vmr_ip| %>
+  VMR_IP=<%= vmr_ip %>
+
+  if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
+    MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
+  fi
+
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Community-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  EXISTING_COMMUNITY_VMRS="${EXISTING_COMMUNITY_VMRS} ${VMR_IP}"
 
   <% end %>
 <% end %>
@@ -143,42 +166,44 @@ echo "Service Broker: $RESPONSE"
 
 # Iterate through each element of the returned JSON erray (Via extractIpPort.rb)
 while read i; do
-   if [ ! -z "$i" ]; then
-     CURRENT_HOST=`echo "$i" | awk '{print $1}'`
-     CURRENT_PORT=`echo "$i" | awk '{print $2}'`
-     CURRENT_PLAN_ID=`echo "$i" | awk '{print $3}'`
+  if [ ! -z "$i" ]; then
+    CURRENT_HOST=`echo "$i" | awk '{print $1}'`
+    CURRENT_PORT=`echo "$i" | awk '{print $2}'`
+    CURRENT_POOL_NAME=`echo "$i" | awk '{print $3}'`
 
-     if [ "$CURRENT_PLAN_ID" = "9bd51219-9cee-4570-99ab-ebe80d82c854" ]; then
-        echo "Configuring a dedicated VMR: ${CURRENT_HOST}:${CURRENT_PORT}..."
-        ./rs-config-vmr-for-maas --cli-username $ADMIN_USER  --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
-        echo "Done."
-     else
-        echo "Configuring a shared VMR: ${CURRENT_HOST}:${CURRENT_PORT}..."
-        ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$CURRENT_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
-        echo "Done."
-     fi
+    echo "Configuring a ${CURRENT_POOL_NAME} VMR: ${CURRENT_HOST}:${CURRENT_PORT}..."
+    ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $CURRENT_HOST:$CURRENT_PORT poolName=$CURRENT_POOL_NAME portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+    echo "Done."
 
-     #Remove this host from the lists.  It was added, so was not existing before this deployment
-     removeFromList "${EXISTING_DEDICATED_VMRS}" ${CURRENT_HOST}
-     EXISTING_DEDICATED_VMRS="${output}"
-     removeFromList "${EXISTING_SHARED_VMRS}" ${CURRENT_HOST}
-     EXISTING_SHARED_VMRS="${output}"
-   fi
+    #Remove this host from the lists.  It was added, so was not existing before this deployment
+    removeFromList "${EXISTING_LARGE_VMRS}" ${CURRENT_HOST}
+    EXISTING_LARGE_VMRS="${output}"
+    removeFromList "${EXISTING_MEDIUM_VMRS}" ${CURRENT_HOST}
+    EXISTING_MEDIUM_VMRS="${output}"
+    removeFromList "${EXISTING_COMMUNITY_VMRS}" ${CURRENT_HOST}
+    EXISTING_COMMUNITY_VMRS="${output}"
+  fi
 done < <(echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/extractIpPort.rb)
 
-echo "Updating configuration for these Large-VMR hosts which already existed before this deployment: $EXISTING_DEDICATED_VMRS."
-for CURRENT_HOST in $EXISTING_DEDICATED_VMRS; do
+echo "Updating configuration for these Large-VMR hosts which already existed before this deployment: $EXISTING_LARGE_VMRS."
+for CURRENT_HOST in $EXISTING_LARGE_VMRS; do
   echo "Updating configuration for host $CURRENT_HOST"
-  ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$SSH_PORT plan=dedicated portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+  ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $CURRENT_HOST:$SSH_PORT poolName=Large-VMR portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
 done
 
-echo "Updating configuration for these Shared-VMR hosts which already existed before this deployment: $EXISTING_SHARED_VMRS."
-for CURRENT_HOST in $EXISTING_SHARED_VMRS; do
+echo "Updating configuration for these Medium-VMR hosts which already existed before this deployment: $EXISTING_MEDIUM_VMRS."
+for CURRENT_HOST in $EXISTING_MEDIUM_VMRS; do
   echo "Updating configuration for host $CURRENT_HOST"
-  ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password $ADMIN_PASSWORD $CURRENT_HOST:$SSH_PORT plan=shared portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+  ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $CURRENT_HOST:$SSH_PORT poolName=Medium-VMR portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
 done
 
-<% if_p("shared_vmr_list") do |vmrs| %>
+echo "Updating configuration for these Community-VMR hosts which already existed before this deployment: $EXISTING_COMMUNITY_VMRS."
+for CURRENT_HOST in $EXISTING_COMMUNITY_VMRS; do
+  echo "Updating configuration for host $CURRENT_HOST"
+  ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $CURRENT_HOST:$SSH_PORT poolName=Community-VMR portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+done
+
+<% if_p("medium_vmr_list") do |vmrs| %>
   <% vmrs.each do |vmr_ip| %>
     VMR_IP=<%= vmr_ip %>
 
@@ -186,7 +211,15 @@ done
   <% end %>
 <% end %>
 
-<% if_p("dedicated_vmr_list") do |vmrs| %>
+<% if_p("large_vmr_list") do |vmrs| %>
+  <% vmrs.each do |vmr_ip| %>
+    VMR_IP=<%= vmr_ip %>
+
+    setupTls
+  <% end %>
+<% end %>
+
+<% if_p("community_vmr_list") do |vmrs| %>
   <% vmrs.each do |vmr_ip| %>
     VMR_IP=<%= vmr_ip %>
 

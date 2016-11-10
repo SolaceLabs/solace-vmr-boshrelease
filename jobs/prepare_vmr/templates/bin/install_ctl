@@ -25,17 +25,23 @@ case $1 in
         >>$LOG_DIR/$JOB_NAME.stdout.log \
         2>>$LOG_DIR/$JOB_NAME.stderr.log
 
-    # tag it to latest so we can find the image
-    if [ ! -z "`docker images -q solace-app:latest`" ]
-    then
-        docker rmi solace-app:latest
-    fi
     tar zxf /var/vcap/packages/vmr_image/soltr-docker.tgz manifest.json
-    IMAGE_NAME=`$JQ -r '.[0].RepoTags[0]' manifest.json`
-    echo "Installing $IMAGE_NAME"
-    IMAGE_ID=`docker images -q $IMAGE_NAME`
-    echo "Id for $IMAGE_NAME is $IMAGE_ID.  Tagging as solace-app:latest."
-    docker tag $IMAGE_ID solace-app:latest
+    while read IMAGE
+    do
+        echo "Installing $IMAGE"
+        IMAGE_ID=`docker images -q $IMAGE`
+        IMAGE_NAME=`echo $IMAGE | cut -d':' -f 1`
+        IMAGE_TAG=`echo $IMAGE | cut -d':' -f 2`
+        IMAGE_EDITION=`echo $IMAGE_TAG | cut -d'-' -f 2`
+        echo "Id for $IMAGE_NAME:$IMAGE_TAG is $IMAGE_ID.  Tagging as solace-app:latest-$IMAGE_EDITION"
+
+        # tag it to latest so we can find the image
+        if [ ! -z "`docker images -q solace-app:latest-$IMAGE_EDITION`" ]
+        then
+            docker rmi solace-app:latest
+        fi
+        docker tag $IMAGE_ID solace-app:latest-$IMAGE_EDITION
+    done < <($JQ -r '.[].RepoTags[0]' manifest.json)
 
     # do nothing forever
     exec tail -f /dev/null

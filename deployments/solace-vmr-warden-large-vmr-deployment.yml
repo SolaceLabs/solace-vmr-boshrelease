@@ -65,7 +65,7 @@ jobs:
       - name: solace
         image: solace-bosh
         dockerfile: |
-          FROM solace-app:latest
+          FROM solace-app:latest-evaluation
 
           RUN \
             echo 'admin' | passwd --stdin admin && \
@@ -106,5 +106,5 @@ jobs:
     broker_hostname: '10.254.50.4'
     admin_password: 'admin'
     ssh_port: 2222
-    dedicated_vmr_list:
+    large_vmr_list:
       - 10.244.0.3

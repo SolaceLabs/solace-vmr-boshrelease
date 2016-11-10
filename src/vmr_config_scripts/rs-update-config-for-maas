@@ -3,7 +3,7 @@
 #  Configure MQTT for the router
 #
 <%args>
-plan       => "shared" # The VMR plan type. Either 'shared' or 'dedicated'
+poolName       => "Medium-VMR" # The VMR pool name.  Either "Medium-VMR" "Large-VMR" or "Community-VMR"
 portSeed   => 7000     # A seed port where Solace services will begin port allocation.
 fileUserPass => "u4EANiNxwS6C"
 adminPass => "u4EANiNxwS6C"
@@ -27,31 +27,31 @@ username admin
 change-password <% $adminPass %>
 end
 
-%if ($plan eq "shared") 
+%my $countVpns;
+%if ($poolName eq "Medium-VMR")
 %{
-%   my $countClientUsernames = 20;
+%   $countVpns = 5;
+%}
+%if ($poolName eq "Large-VMR")
+%{
+%   $countVpns = 1;
+%}
+%if ($poolName eq "Community-VMR")
+%{
+%   $countVpns = 1;
+%}
 
-    # For Shared VMR Plans, must do the following
-    # 1) Must disable default message VPN
-    # 2) Must create the 5 required VPNs with configuration
-
-    # Disable default message VPN.
     home
     enable
     configure
     message-vpn "default"
         shutdown
-    end 
+    end
 
     home
     enable
     configure
 
-    # SMF ports :
-    #   plain-text port: SeedPort
-    #   compressed port: SeedPort + 1
-    #   routing-control port: SeedPort + 2
-    #   ssl port : SeedPort + 3
     service smf shutdown
     service smf listen-port <% $portSeed++ %>
     service smf listen-port <% $portSeed++ %> compressed
@@ -59,19 +59,12 @@ end
     service smf listen-port <% $portSeed++ %> ssl
     no service smf shutdown
 
-    # SMF Web-transport ports :
-    #   plain-text port: SeedPort + 4
-    #   plain-text port: SeedPort + 5
     service web-transport shutdown
     service web-transport listen-port <% $portSeed++ %>
     service web-transport listen-port <% $portSeed++ %> ssl
     no service web-transport shutdown
 
-    # VPN Specific ports starts at VpnSeedPort.  VpnSeedPort = (SeedPort + 6) + (vpnId-1)*(portsPerVpn)
-    # portsPerVpn = 6  (2 Rests, and 4 Mqtt ports)
-
-    # Create 5 required VPNs
-%   for my $vpnId (1 .. 5)
+%   for my $vpnId (1 .. $countVpns)
 %   {
 %       my $msgVpnName = "v" . sprintf("%03d", $vpnId);
 
@@ -80,14 +73,9 @@ end
         configure
 
         message-vpn <% $msgVpnName %>
-
-            # Setup max 200 SMF connections for this VPN and enable SMF for VPN
             no service smf plain-text shutdown
             no service smf ssl shutdown
 
-            # REST
-            # plain-text port : VpnSeedPort
-            # ssl port : VpnSeedPort + 1
             service rest incoming plain-text shutdown
             service rest incoming listen-port <% $portSeed++ %>
             no service rest incoming plain-text shutdown
@@ -96,11 +84,6 @@ end
             service rest incoming listen-port <% $portSeed++ %> ssl
             no service rest incoming ssl shutdown
 
-            # MQTT
-            # plain-text port : VpnSeedPort + 2
-            # ssl port : VpnSeedPort + 3
-            # web port : VpnSeedPort + 4
-            # web ssl port : VpnSeedPort + 5
             service mqtt plain-text shutdown
             service mqtt listen-port <% $portSeed++ %>
             no service mqtt plain-text shutdown
@@ -117,69 +100,6 @@ end
             service mqtt listen-port <% $portSeed++ %> ssl web
             no service mqtt websocket-secure shutdown
 
-        no shutdown
-
+            no shutdown
         end
 %   }
-%} else {
-
-    # Configure for dedicated access.
-    home
-    enable
-    configure
-
-    # SMF ports :
-    #   plain-text port: SeedPort
-    #   compressed port: SeedPort + 1
-    #   routing-control port: SeedPort + 2
-    #   ssl port : SeedPort + 3
-    service smf shutdown
-    service smf listen-port <% $portSeed++ %>
-    service smf listen-port <% $portSeed++ %> compressed
-    service smf listen-port <% $portSeed++ %> routing-control
-    service smf listen-port <% $portSeed++ %> ssl
-    no service smf shutdown
-
-    # SMF Web-transport ports :
-    #   plain-text port: SeedPort + 4
-    #   plain-text port: SeedPort + 5
-    service web-transport shutdown
-    service web-transport listen-port <% $portSeed++ %>
-    service web-transport listen-port <% $portSeed++ %> ssl
-    no service web-transport shutdown
-
-    message-vpn "v001"
-
-        no service smf plain-text shutdown
-        no service smf ssl shutdown
-
-        service rest incoming plain-text shutdown
-        service rest incoming listen-port <% $portSeed++ %>
-        no service rest incoming plain-text shutdown
-
-        service rest incoming ssl shutdown
-        service rest incoming listen-port <% $portSeed++ %> ssl
-        no service rest incoming ssl shutdown
-
-        service mqtt plain-text shutdown
-        service mqtt listen-port <% $portSeed++ %>
-        no service mqtt plain-text shutdown
-
-        service mqtt ssl shutdown
-        service mqtt listen-port <% $portSeed++ %> ssl
-        no service mqtt ssl shutdown
-
-        service mqtt websocket shutdown
-        service mqtt listen-port <% $portSeed++ %> web
-        no service mqtt websocket shutdown
-
-        service mqtt websocket-secure shutdown
-        service mqtt listen-port <% $portSeed++ %> ssl web
-        no service mqtt websocket-secure shutdown
-
-    no shutdown
-
-    end
-
-
-%}

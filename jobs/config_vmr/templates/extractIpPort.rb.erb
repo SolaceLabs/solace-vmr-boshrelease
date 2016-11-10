@@ -3,5 +3,5 @@ require 'json'
 
 data = JSON.parse(STDIN.read)
 data.each do |child|
-  puts "#{child['sempHost']} " + "#{child['sshPort']} " + "#{child['planId']}"
+  puts "#{child['sempHost']} " + "#{child['sshPort']} " + "#{child['poolName']}"
 end

@@ -13,7 +13,9 @@ else
     # Convenience for people working with bosh-lite.  Drop the latest container tar.gz in the host's vagrant folder and
     # the script will move it into the build's blobs.
     if [ -f /vagrant/*evaluation-docker.tar.gz ]; then
-        ruby ./buildUtils/imagePacker.rb `ls /vagrant/*evaluation-docker.tar.gz` `ls /vagrant/*community-docker.tar.gz` blobs/soltr_docker/soltr-docker.tgz
+        if [ ! -f blobs/soltr_docker/soltr-docker.tgz ]; then
+            ruby ./buildUtils/imagePacker.rb `ls /vagrant/*evaluation-docker.tar.gz` `ls /vagrant/*community-docker.tar.gz` > blobs/soltr_docker/soltr-docker.tgz
+        fi
     fi
 fi
 

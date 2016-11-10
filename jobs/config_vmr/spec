@@ -7,10 +7,12 @@ templates:
   extractIpPort.rb.erb: bin/extractIpPort.rb
   server.pem.erb: config/server.pem
 properties:
-  dedicated_vmr_list:
+  large_vmr_list:
     description: 'List of dedicated VMRs (comma delimited).'
-  shared_vmr_list:
+  medium_vmr_list:
     description: 'List of shared VMRs (comma delimited).'
+  community_vmr_list:
+    description: 'List of community VMRs (comma delimited).'
   starting_port:
     description: 'Services on the VMRs will be assigned ports starting from the port specified here.'
   broker_user:
