@@ -68,8 +68,8 @@ end
 %   $countClientUsernames = 98;
 %   $countVpns = 1;
 %   $maxSpoolUsage = 4000;
-%   $maxTransactedSessions = 1000;
-%   $maxTransactions = 5000;
+%   $maxTransactedSessions = 100;
+%   $maxTransactions = 500;
 %   $maxEndpoints = 100;
 %}
 
