@@ -63,6 +63,7 @@ case $1 in
                 rm -rf /var/vcap/store/prepare_vmr/volumes/adb/*
                 rm -rf /var/vcap/store/prepare_vmr/volumes/adbBackup/*
                 rm -rf /var/vcap/store/prepare_vmr/volumes/internalSpool/*
+                rm -f /dev/shm/*
             else
                 echo "Same version detected: $CURRENT_VERSION.  Will not wipe ADB data."
             fi
