@@ -20,6 +20,19 @@ case $1 in
     # store pid in $PIDFILE
     echo $$ > $PIDFILE
 
+    # Grab the current version
+    CURRENT_VERSION=`docker images | awk '{print $2}' | cut -d'-' -f1 | grep -v "TAG" | grep -v "latest" | head -n 1`
+    echo "Current version is $CURRENT_VERSION"
+
+    if [ -z "`docker ps -qa`" ]
+    then
+        if [ ! -z "`docker images | tail -n +2 | awk '{print $1":"$2}'`" ]
+        then
+            # Clean up previously installed images only when solace container doesn't exists.
+            docker rmi $(docker images | tail -n +2 | awk '{print $1":"$2}')
+        fi
+    fi
+
     time docker \
       load -i /var/vcap/packages/vmr_image/soltr-docker.tgz
         >>$LOG_DIR/$JOB_NAME.stdout.log \
@@ -28,17 +41,37 @@ case $1 in
     tar zxf /var/vcap/packages/vmr_image/soltr-docker.tgz manifest.json
     while read IMAGE
     do
-        echo "Installing $IMAGE"
+        echo "Installing $IMAGE."
         IMAGE_ID=`docker images -q $IMAGE`
         IMAGE_NAME=`echo $IMAGE | cut -d':' -f 1`
         IMAGE_TAG=`echo $IMAGE | cut -d':' -f 2`
+        IMAGE_VERSION=`echo $IMAGE_TAG | cut -d'-' -f 1`
         IMAGE_EDITION=`echo $IMAGE_TAG | cut -d'-' -f 2`
-        echo "Id for $IMAGE_NAME:$IMAGE_TAG is $IMAGE_ID.  Tagging as solace-app:latest-$IMAGE_EDITION"
+        echo "Id for $IMAGE_NAME:$IMAGE_TAG is $IMAGE_ID.  Tagging as solace-app:latest-$IMAGE_EDITION."
+
+        #Idempotent, so it's OK that we run it multiple time
+        if [ -z "$CURRENT_VERSION" ]
+        then
+            echo "Initial install, no version currently installed.  Installing $IMAGE_VERSION."
+        else
+            if [ "$IMAGE_VERSION" != "$CURRENT_VERSION" ]
+            then
+                # Different versions, apply upgrade procedure.
+                # For now, simply wipe the adb data to prevent issues
+                echo "Different versions detected; Installing $IMAGE_VERSION over $CURRENT_VERSION."
+                echo "Wiping ADB data."
+                rm -rf /var/vcap/store/prepare_vmr/volumes/adb/*
+                rm -rf /var/vcap/store/prepare_vmr/volumes/adbBackup/*
+                rm -rf /var/vcap/store/prepare_vmr/volumes/internalSpool/*
+            else
+                echo "Same version detected: $CURRENT_VERSION.  Will not wipe ADB data."
+            fi
+        fi
 
         # tag it to latest so we can find the image
         if [ ! -z "`docker images -q solace-app:latest-$IMAGE_EDITION`" ]
         then
-            docker rmi solace-app:latest
+            docker rmi solace-app:latest-$IMAGE_EDITION
         fi
         docker tag $IMAGE_ID solace-app:latest-$IMAGE_EDITION
     done < <($JQ -r '.[].RepoTags[0]' manifest.json)
