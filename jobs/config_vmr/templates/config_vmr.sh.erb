@@ -40,6 +40,10 @@ export HOME=`pwd`
 chmod +x run-router-script
 chmod +x rs-config-vmr-for-maas
 chmod +x rs-config-server-cert
+echo "LARGE_VMR_INSTANCES = <%= properties.large_vmr_instances_list %>"
+echo "MEDIUM_VMR_INSTANCES = <%= properties.medium_vmr_instances_list %>"
+echo "COMMUNITY_VMR_INSTANCES = <%= properties.community_vmr_instances_list %>"
+
 
 echo "LARGE_VMR_LIST = <%= properties.large_vmr_list %>"
 echo "MEDIUM_VMR_LIST = <%= properties.medium_vmr_list %>"

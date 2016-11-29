@@ -9,10 +9,16 @@ templates:
 properties:
   large_vmr_list:
     description: 'List of dedicated VMRs (comma delimited).'
+  large_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
   medium_vmr_list:
     description: 'List of shared VMRs (comma delimited).'
+  medium_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
   community_vmr_list:
     description: 'List of community VMRs (comma delimited).'
+  community_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
   starting_port:
     description: 'Services on the VMRs will be assigned ports starting from the port specified here.'
   broker_user:
