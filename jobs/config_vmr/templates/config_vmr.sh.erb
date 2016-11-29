@@ -231,4 +231,28 @@ done
   <% end %>
 <% end %>
 
+echo "Committing the VMRs list to the Service Broker..."
 curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"
+
+echo ""
+echo "Validating VMR state with the Service Broker..."
+RESPONSE=`curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/summary`
+
+while read i
+do
+  if [ ! -z "$i" ]
+  then
+    CURRENT_HOST_IP=`echo "$i" | awk '{print $1}'`
+    CURRENT_HOST_STATUS=`echo "$i" | awk '{print $2}'`
+
+    echo "Status reported by Service Broker for $CURRENT_HOST_IP: $CURRENT_HOST_STATUS"
+
+    if [ "$CURRENT_HOST_STATUS" != "OK" ]
+    then
+      echo "Service Broker reported an issue with VMR $CURRENT_HOST_IP...  Deployment will fail."
+      echo "Dumping the detailed status of all VMRs :"
+      curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/details
+      exit 1
+    fi
+  fi
+done  < <(echo $RESPONSE | ruby /var/vcap/jobs/config_vmr/bin/parseSBSummary.rb)

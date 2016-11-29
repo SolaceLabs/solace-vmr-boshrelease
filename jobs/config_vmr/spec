@@ -5,6 +5,7 @@ packages:
 templates:
   config_vmr.sh.erb: bin/run
   extractIpPort.rb.erb: bin/extractIpPort.rb
+  parseSBSummary.rb.erb: bin/parseSBSummary.rb
   server.pem.erb: config/server.pem
 properties:
   large_vmr_list:
