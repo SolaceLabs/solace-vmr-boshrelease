@@ -43,7 +43,7 @@ end
 %{
 %   $maxConnections = 200;
 %   $maxSubscriptions = 100000;
-%   $countClientUsernames = 20;
+%   $countClientUsernames = 100;
 %   $countVpns = 5;
 %   $maxSpoolUsage = 4000;
 %   $maxTransactedSessions = 200;
@@ -54,7 +54,7 @@ end
 %{
 %   $maxConnections = 1000;
 %   $maxSubscriptions = 500000;
-%   $countClientUsernames = 100;
+%   $countClientUsernames = 500;
 %   $countVpns = 1;
 %   $maxSpoolUsage = 20000;
 %   $maxTransactedSessions = 1000;
