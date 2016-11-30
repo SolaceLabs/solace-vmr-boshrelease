@@ -163,9 +163,9 @@ EXISTING_COMMUNITY_VMRS=""
 
 MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}]"
 
-echo "curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "'"'"${MANAGED_ROUTER_JSON_LIST}"'"'
+echo "curl -s -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "'"'"${MANAGED_ROUTER_JSON_LIST}"'"'
 
-RESPONSE=`curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8"`
+RESPONSE=`curl -s -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}" -H "Content-Type: application/json;charset=UTF-8"`
 echo "Service Broker: $RESPONSE"
 
 # Iterate through each element of the returned JSON erray (Via extractIpPort.rb)
@@ -232,11 +232,11 @@ done
 <% end %>
 
 echo "Committing the VMRs list to the Service Broker..."
-curl -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"
+curl -s -X POST $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/manage/solace_message_routers -d "${MANAGED_ROUTER_JSON_LIST}"  -H "Content-Type: application/json;charset=UTF-8"
 
 echo ""
 echo "Validating VMR state with the Service Broker..."
-RESPONSE=`curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/summary`
+RESPONSE=`curl -s -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/summary`
 
 while read i
 do
@@ -251,7 +251,7 @@ do
     then
       echo "Service Broker reported an issue with VMR $CURRENT_HOST_IP...  Deployment will fail."
       echo "Dumping the detailed status of all VMRs :"
-      curl -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/details
+      curl -s -X GET $BROKER_USER:$BROKER_PASSWORD@$BROKER_HOSTNAME/solace/resources/solace_message_routers/details
       exit 1
     fi
   fi
