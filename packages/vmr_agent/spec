@@ -1,0 +1,7 @@
+---
+name: vmr_agent
+
+dependencies: [ java ]
+
+files:
+    - vmr_agent/vmr-agent.jar

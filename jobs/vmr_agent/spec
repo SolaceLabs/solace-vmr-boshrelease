@@ -1,0 +1,39 @@
+---
+name: vmr_agent
+packages: [java, vmr_agent]
+templates:
+  vmr_agent_ctl.sh.erb: bin/vmr_agent_ctl
+  bin/monit_debugger: bin/monit_debugger
+  helpers/ctl_setup.sh: helpers/ctl_setup.sh
+  helpers/ctl_utils.sh: helpers/ctl_utils.sh
+properties:
+  large_vmr_list:
+    description: 'List of dedicated VMRs (comma delimited).'
+  large_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
+  medium_vmr_list:
+    description: 'List of shared VMRs (comma delimited).'
+  medium_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
+  community_vmr_list:
+    description: 'List of community VMRs (comma delimited).'
+  community_vmr_instances_list:
+    description: 'List of dedicated VMRs (comma delimited).'
+  starting_port:
+    description: 'Services on the VMRs will be assigned ports starting from the port specified here.'
+  broker_user:
+    description: 'Username to access service broker''s web services.'
+  broker_password:
+    description: 'Password to access service broker''s web services.'
+  broker_hostname:
+    description: 'Hostname of the service broker''s web services.'
+  admin_password:
+    description: 'Password to access the VMR.'
+  ssh_port:
+    description: 'SSH Port of the VMRs.'
+  private_key_pem:
+    description: 'Private key to install on the VMRs'
+  cert_pem:
+    description: 'RSA Server Certificate to install on the VMRs'
+  vmr_agent_port:
+    description: 'VMR Agent Listen port'

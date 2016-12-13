@@ -3,10 +3,12 @@
 source ../solace-versioning/version.sh
 set_version
 
+### Prepare BLOB store ###
+
 mkdir -p blobs/vmr_config_scripts
-mkdir -p blobs/soltr_docker
 tar czf blobs/vmr_config_scripts/vmr_config_scripts.tgz src/vmr_config_scripts/*
 
+mkdir -p blobs/soltr_docker
 if [ -d /home/public/RND/loads ]; then
     ruby ./buildUtils/imagePacker.rb `ls /home/public/RND/loads/solcbr/$SOLTR_LOAD/production/*evaluation-docker.tar.gz` `ls /home/public/RND/loads/solcbr/$SOLTR_LOAD/production/*community-docker.tar.gz` > blobs/soltr_docker/soltr-docker.tgz
 else
@@ -17,6 +19,32 @@ else
             ruby ./buildUtils/imagePacker.rb `ls /vagrant/*evaluation-docker.tar.gz` `ls /vagrant/*community-docker.tar.gz` > blobs/soltr_docker/soltr-docker.tgz
         fi
     fi
+fi
+
+if [ ! -d blobs/java ]; then
+ 
+  mkdir -p blobs/java
+
+  JDK_URL="https://download.run.pivotal.io/openjdk-jdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
+  JDK_FILE="blobs/java/openjdk-jdk-trusty-1.8.0_111.tar.gz"
+  JRE_URL="https://download.run.pivotal.io/openjdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
+  JRE_FILE="blobs/java/openjdk-jre-trusty-1.8.0_111.tar.gz"
+
+  wget -O $JDK_FILE $JDK_URL
+  wget -O $JRE_FILE $JRE_URL
+
+fi
+
+mkdir -p blobs/vmr_agent
+VMR_AGENT_SOURCE_FILE=${VMR_AGENT_SOURCE_FILE:-`ls ../vmr-agent/build/libs/vmr-agent-*.jar`}
+VMR_AGENT_TARGET_FILE=blobs/vmr_agent/vmr-agent.jar
+
+if [ ! -f $VMR_AGENT_SOURCE_FILE ]; then
+   echo "Could not locate a VMR-Agent jar file, was the vmr-agent project built?"
+   exit 1
+else
+   echo "Copying $VMR_AGENT_SOURCE_FILE to $VMR_AGENT_TARGET_FILE"
+   cp $VMR_AGENT_SOURCE_FILE $VMR_AGENT_TARGET_FILE
 fi
 
 # 'bosh create release' creates a release artifact cache under ~/.bosh

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e # exit immediately if a simple command exits with a non-zero status
+set -u # report the usage of uninitialized variables
+
+# Setup env vars and folders 
+source /var/vcap/jobs/vmr_agent/helpers/ctl_setup.sh 'vmr_agent'
+
+export JAVA_HOME=/var/vcap/packages/java
+export PATH=$JAVA_HOME/bin:$PATH
+
+## Will be used by spring boot for web server port
+export SERVER_PORT=<%= properties.vmr_agent_port %>
+
+echo "SERVER_PORT=$SERVER_PORT"
+echo "PIDFILE=$PIDFILE"
+
+case $1 in
+
+  start)
+    pid_guard $PIDFILE $JOB_NAME
+
+    ## Runs the vmr-agent and will write PID to $PIDFILE
+    java -Xmx64m -jar /var/vcap/packages/vmr_agent/vmr-agent.jar
+
+    # store pid in $PIDFILE
+    # echo $$ > $PIDFILE
+
+    ;;
+
+  stop)
+    kill_and_wait $PIDFILE
+
+    ;;
+
+  *)
+    echo "Usage: vmr_agent_ctl {start|stop}"
+
+    ;;
+
+esac
+exit 0
