@@ -21,19 +21,15 @@ else
     fi
 fi
 
-if [ ! -d blobs/java ]; then
- 
-  mkdir -p blobs/java
-
-  JDK_URL="https://download.run.pivotal.io/openjdk-jdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
-  JDK_FILE="blobs/java/openjdk-jdk-trusty-1.8.0_111.tar.gz"
-  JRE_URL="https://download.run.pivotal.io/openjdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
-  JRE_FILE="blobs/java/openjdk-jre-trusty-1.8.0_111.tar.gz"
-
-  wget -O $JDK_FILE $JDK_URL
-  wget -O $JRE_FILE $JRE_URL
-
-fi
+#if [ ! -d blobs/java ]; then
+#  mkdir -p blobs/java
+#  JDK_URL="https://download.run.pivotal.io/openjdk-jdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
+#  JDK_FILE="blobs/java/openjdk-jdk-trusty-1.8.0_111.tar.gz"
+#  wget -O $JDK_FILE $JDK_URL
+#  JRE_URL="https://download.run.pivotal.io/openjdk/trusty/x86_64/openjdk-1.8.0_111.tar.gz"
+#  JRE_FILE="blobs/java/openjdk-jre-trusty-1.8.0_111.tar.gz"
+#  wget -O $JRE_FILE $JRE_URL
+#fi
 
 mkdir -p blobs/vmr_agent
 VMR_AGENT_SOURCE_FILE=${VMR_AGENT_SOURCE_FILE:-`ls ../vmr-agent/build/libs/vmr-agent-*.jar`}
