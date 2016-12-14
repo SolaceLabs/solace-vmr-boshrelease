@@ -63,6 +63,12 @@ jobs:
       - 10.244.0.3
   properties:
     vmr_agent_port: 18080 
+    starting_port: 7000
+    broker_user: 'test_user-1212'
+    broker_password: 'test_password-2323'
+    broker_hostname: '10.254.50.4'
+    admin_password: 'admin'
+    ssh_port: 2222
     containers:
       - name: solace
         image: solace-bosh
