@@ -7,6 +7,7 @@ set -u # report the usage of uninitialized variables
 source /var/vcap/jobs/vmr_agent/helpers/ctl_setup.sh 'vmr_agent'
 
 export JAVA_HOME=/var/vcap/packages/java
+export JAVA_OPTS=" -Xmx64m "
 export PATH=$JAVA_HOME/bin:$PATH
 
 ## Will be used by spring boot for web server port
@@ -18,7 +19,16 @@ export BROKER_HOSTNAME=<%= properties.broker_hostname %>
 export SSH_PORT=<%= properties.ssh_port %>
 export ADMIN_USER=admin
 export ADMIN_PASSWORD='<%= properties.admin_password %>'
+export POOL_NAME='<%= properties.pool_name %>'
 
+export SPEC_NAME='<%= spec.name %>'
+export SPEC_ID='<%= spec.id %>'
+export SPEC_BOOTSTRAP='<%= spec.bootstrap %>'
+export SPEC_INDEX='<%= spec.index %>'
+export SPEC_AZ='<%= spec.az %>'
+export SPEC_ADDRESS='<%= spec.address %>'
+export SPEC_NETWORKS='<%= spec.networks %>'
+export SPEC_IP='<%= spec.ip %>'
 
 echo "PIDFILE=$PIDFILE"
 
@@ -30,6 +40,16 @@ echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
 echo "SSH_PORT = <%= properties.ssh_port %>"
 echo "ADMIN_USER = $ADMIN_USER"
 echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
+echo "POOL_NAME= <%= properties.pool_name %>"
+
+echo SPEC_NAME='<%= spec.name %>'
+echo SPEC_ID='<%= spec.id %>'
+echo SPEC_BOOTSTRAP='<%= spec.bootstrap %>'
+echo SPEC_INDEX='<%= spec.index %>'
+echo SPEC_AZ='<%= spec.az %>'
+echo SPEC_ADDRESS='<%= spec.address %>'
+echo SPEC_NETWORKS='<%= spec.networks %>'
+echo SPEC_IP='<%= spec.ip %>'
 
 <% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
     echo "cert_pem and private_key_pem are available and will be used."
@@ -44,6 +64,14 @@ echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
 echo "CERT_PEM_AVAILABLE = $CERT_PEM_AVAILABLE"
 echo "PRIVATE_KEY_PEM_AVAILABLE = $PRIVATE_KEY_PEM_AVAILABLE"
 
+echo "------------------------ MISC --------------------------------"
+echo
+
+echo "raw_properties=<%= raw_properties %>"
+
+echo
+echo "-------------------------------------------------------------"
+
 case $1 in
 
   start)
@@ -53,7 +81,16 @@ case $1 in
     ## Spring Security will use SECURITY_USER_NAME and SECURITY_USER_PASSWORD
     export SECURITY_USER_NAME="$ADMIN_USER"
     export SECURITY_USER_PASSWORD="$ADMIN_PASSWORD"
-    java -Xmx64m -jar /var/vcap/packages/vmr_agent/vmr-agent.jar
+
+    echo "-------------------------------------------------------------"
+    echo "ENV before running agent"
+    echo "-------------------------------------------------------------"
+    env
+    echo "-------------------------------------------------------------"
+    echo
+    echo "Starting: java $JAVA_OPTS -jar /var/vcap/packages/vmr_agent/vmr-agent.jar"
+
+    java $JAVA_OPTS -jar /var/vcap/packages/vmr_agent/vmr-agent.jar
 
     ;;
 

@@ -40,3 +40,5 @@ properties:
     description: 'RSA Server Certificate to install on the VMRs'
   vmr_agent_port:
     description: 'VMR Agent Listen port'
+  pool_name:
+    description: 'The name of the pool the VMR belongs to'
