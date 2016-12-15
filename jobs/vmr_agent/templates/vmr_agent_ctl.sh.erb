@@ -11,9 +11,38 @@ export PATH=$JAVA_HOME/bin:$PATH
 
 ## Will be used by spring boot for web server port
 export SERVER_PORT=<%= properties.vmr_agent_port %>
+export STARTING_PORT=<%= properties.starting_port %>
+export BROKER_USER=<%= properties.broker_user %>
+export BROKER_PASSWORD='<%= properties.broker_password %>'
+export BROKER_HOSTNAME=<%= properties.broker_hostname %>
+export SSH_PORT=<%= properties.ssh_port %>
+export ADMIN_USER=admin
+export ADMIN_PASSWORD='<%= properties.admin_password %>'
 
-echo "SERVER_PORT=$SERVER_PORT"
+
 echo "PIDFILE=$PIDFILE"
+
+echo "SERVER_PORT = <%= properties.vmr_agent_port %>"
+echo "STARTING_PORT = <%= properties.starting_port %>"
+echo "BROKER_USER = <%= properties.broker_user %>"
+echo "BROKER_PASSWORD = <%= properties.broker_password %>"
+echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
+echo "SSH_PORT = <%= properties.ssh_port %>"
+echo "ADMIN_USER = $ADMIN_USER"
+echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
+
+<% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
+    echo "cert_pem and private_key_pem are available and will be used."
+    export CERT_PEM_AVAILABLE=true
+    export PRIVATE_KEY_PEM_AVAILABLE=true
+<% end.else do %>
+    echo "cert_pem and private_key_pem not found"
+    export CERT_PEM_AVAILABLE=false
+    export PRIVATE_KEY_PEM_AVAILABLE=false
+<% end%>
+
+echo "CERT_PEM_AVAILABLE = $CERT_PEM_AVAILABLE"
+echo "PRIVATE_KEY_PEM_AVAILABLE = $PRIVATE_KEY_PEM_AVAILABLE"
 
 case $1 in
 
