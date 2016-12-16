@@ -65,10 +65,12 @@ jobs:
     pool_name: 'Large-VMR'
     vmr_agent_port: 18080
     starting_port: 7000
-    broker_user: 'test_user-1212'
-    broker_password: 'test_password-2323'
-    broker_hostname: '10.254.50.4'
+    broker_user: 'solacedemo'
+    broker_password: 'solacedemo'
+    broker_hostname: 'solace-messaging.local.pcfdev.io'
     admin_password: 'admin'
+    admin_user: 'admin'
+    semp_port: 8080
     ssh_port: 2222
     containers:
       - name: solace
@@ -110,10 +112,12 @@ jobs:
       - 10.244.0.2
   properties:
     starting_port: 7000
-    broker_user: 'test_user-1212'
-    broker_password: 'test_password-2323'
-    broker_hostname: '10.254.50.4'
+    broker_user: 'solacedemo'
+    broker_password: 'solacedemo'
+    broker_hostname: 'solace-messaging.local.pcfdev.io'
     admin_password: 'admin'
+    admin_user: 'admin'
+    semp_port: 8080
     ssh_port: 2222
     large_vmr_list:
       - 10.244.0.3

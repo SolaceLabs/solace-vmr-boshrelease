@@ -16,8 +16,9 @@ export STARTING_PORT=<%= properties.starting_port %>
 export BROKER_USER=<%= properties.broker_user %>
 export BROKER_PASSWORD='<%= properties.broker_password %>'
 export BROKER_HOSTNAME=<%= properties.broker_hostname %>
+export SEMP_PORT=<%= properties.semp_port %>
 export SSH_PORT=<%= properties.ssh_port %>
-export ADMIN_USER=admin
+export ADMIN_USER='<%= properties.admin_user %>'
 export ADMIN_PASSWORD='<%= properties.admin_password %>'
 export POOL_NAME='<%= properties.pool_name %>'
 
@@ -37,8 +38,9 @@ echo "STARTING_PORT = <%= properties.starting_port %>"
 echo "BROKER_USER = <%= properties.broker_user %>"
 echo "BROKER_PASSWORD = <%= properties.broker_password %>"
 echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
+echo "SEMP_PORT = <%= properties.semp_port %>"
 echo "SSH_PORT = <%= properties.ssh_port %>"
-echo "ADMIN_USER = $ADMIN_USER"
+echo "ADMIN_USER = <%= properties.admin_user %>"
 echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
 echo "POOL_NAME= <%= properties.pool_name %>"
 

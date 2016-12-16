@@ -53,6 +53,8 @@ echo "BROKER_USER = <%= properties.broker_user %>"
 echo "BROKER_PASSWORD = <%= properties.broker_password %>"
 echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
 echo "SSH_PORT = <%= properties.ssh_port %>"
+echo "SEMP_PORT = <%= properties.semp_port %>"
+echo "ADMIN_USER = <%= properties.admin_user %>"
 echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
 
 # Installs perl modules required to run rs scripts, and jq so we
@@ -64,7 +66,8 @@ BROKER_USER=<%= properties.broker_user %>
 BROKER_PASSWORD='<%= properties.broker_password %>'
 BROKER_HOSTNAME=<%= properties.broker_hostname %>
 SSH_PORT=<%= properties.ssh_port %>
-ADMIN_USER=admin
+SEMP_PORT=<%= properties.semp_port %>
+ADMIN_USER='<%= properties.admin_user %>'
 ADMIN_PASSWORD='<%= properties.admin_password %>'
 # Let's keep it simple, fileuser will be using admin password.  Makes it easier to change the TLS configs for already
 # configured VMRs, as we don't have to remember a randomly chosen password.
@@ -126,7 +129,7 @@ MANAGED_ROUTER_JSON_LIST="["
   if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Large-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"$SEMP_PORT\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Large-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
   EXISTING_LARGE_VMRS="${EXISTING_LARGE_VMRS} ${VMR_IP}"
 
   <% end %>
@@ -140,7 +143,7 @@ EXISTING_MEDIUM_VMRS=""
   if [ "$MANAGED_ROUTER_JSON_LIST" != "[" ]; then
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Medium-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"$SEMP_PORT\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Medium-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
   EXISTING_MEDIUM_VMRS="${EXISTING_MEDIUM_VMRS} ${VMR_IP}"
 
   <% end %>
@@ -155,7 +158,7 @@ EXISTING_COMMUNITY_VMRS=""
     MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST},"
   fi
 
-  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"8080\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Community-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
+  MANAGED_ROUTER_JSON_LIST="${MANAGED_ROUTER_JSON_LIST}""{ \"sempHost\": \"$VMR_IP\",  \"sempPort\": \"$SEMP_PORT\", \"sempUser\": \"$ADMIN_USER\", \"sempPassword\": \"$ADMIN_PASSWORD\", \"poolName\": \"Community-VMR\", \"sshPort\" : \"$SSH_PORT\" }"
   EXISTING_COMMUNITY_VMRS="${EXISTING_COMMUNITY_VMRS} ${VMR_IP}"
 
   <% end %>
