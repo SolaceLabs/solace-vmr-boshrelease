@@ -48,7 +48,7 @@ networks:
       name: random
 
 jobs:
-- name: dedicated-vmr-job
+- name: community-vmr-job
   templates:
   -  {name: docker, release: docker}
   -  {name: prepare_vmr, release: solace-vmr}
@@ -62,7 +62,16 @@ jobs:
     static_ips:
       - 10.244.0.3
   properties:
+    pool_name: 'Community-VMR'
     vmr_agent_port: 18080
+    starting_port: 7000
+    broker_user: 'solacedemo'
+    broker_password: 'solacedemo'
+    broker_hostname: 'solace-messaging.local.pcfdev.io'
+    admin_password: 'admin'
+    admin_user: 'admin'
+    semp_port: 8080
+    ssh_port: 2222
     containers:
       - name: solace
         image: solace-bosh
@@ -103,10 +112,12 @@ jobs:
       - 10.244.0.2
   properties:
     starting_port: 7000
-    broker_user: 'test_user-1212'
-    broker_password: 'test_password-2323'
-    broker_hostname: '10.254.50.4'
+    broker_user: 'solacedemo'
+    broker_password: 'solacedemo'
+    broker_hostname: 'solace-messaging.local.pcfdev.io'
     admin_password: 'admin'
+    admin_user: 'admin'
+    semp_port: 8080
     ssh_port: 2222
     community_vmr_list:
       - 10.244.0.3
