@@ -1,0 +1,82 @@
+#!/bin/bash
+
+export JAVA_HOME=/var/vcap/packages/java
+export JAVA_OPTS=" -Xmx64m "
+export PATH=$JAVA_HOME/bin:$PATH
+
+export VMR_TASK="/var/vcap/jobs/vmr_agent/bin/config_vmr.sh"
+
+## Will be used by spring boot for web server port
+export SERVER_PORT=<%= properties.vmr_agent_port %>
+export STARTING_PORT=<%= properties.starting_port %>
+export BROKER_USER=<%= properties.broker_user %>
+export BROKER_PASSWORD='<%= properties.broker_password %>'
+export BROKER_HOSTNAME=<%= properties.broker_hostname %>
+export SEMP_PORT=<%= properties.semp_port %>
+export SSH_PORT=<%= properties.ssh_port %>
+export ADMIN_USER='<%= properties.admin_user %>'
+export ADMIN_PASSWORD='<%= properties.admin_password %>'
+export POOL_NAME='<%= properties.pool_name %>'
+
+export SPEC_NAME='<%= spec.name %>'
+export SPEC_ID='<%= spec.id %>'
+export SPEC_BOOTSTRAP='<%= spec.bootstrap %>'
+export SPEC_INDEX='<%= spec.index %>'
+export SPEC_AZ='<%= spec.az %>'
+export SPEC_ADDRESS='<%= spec.address %>'
+export SPEC_NETWORKS='<%= spec.networks %>'
+export SPEC_IP='<%= spec.ip %>'
+
+# Let's keep it simple, fileuser will be using admin password.  Makes it easier to change the TLS configs for already
+# configured VMRs, as we don't have to remember a randomly chosen password.
+export FILEUSER_PWD=$ADMIN_PASSWORD
+
+
+echo "Starting $0 - "`date`
+
+echo "PIDFILE=$PIDFILE"
+
+echo "FILEUSER_PWD=$FILEUSER_PWD"
+
+echo "VMR_TASK=$VMR_TASK"
+
+echo "SERVER_PORT = <%= properties.vmr_agent_port %>"
+echo "STARTING_PORT = <%= properties.starting_port %>"
+echo "BROKER_USER = <%= properties.broker_user %>"
+echo "BROKER_PASSWORD = <%= properties.broker_password %>"
+echo "BROKER_HOSTNAME = <%= properties.broker_hostname %>"
+echo "SEMP_PORT = <%= properties.semp_port %>"
+echo "SSH_PORT = <%= properties.ssh_port %>"
+echo "ADMIN_USER = <%= properties.admin_user %>"
+echo "ADMIN_PASSWORD = <%= properties.admin_password %>"
+echo "POOL_NAME= <%= properties.pool_name %>"
+
+echo SPEC_NAME='<%= spec.name %>'
+echo SPEC_ID='<%= spec.id %>'
+echo SPEC_BOOTSTRAP='<%= spec.bootstrap %>'
+echo SPEC_INDEX='<%= spec.index %>'
+echo SPEC_AZ='<%= spec.az %>'
+echo SPEC_ADDRESS='<%= spec.address %>'
+echo SPEC_NETWORKS='<%= spec.networks %>'
+echo SPEC_IP='<%= spec.ip %>'
+
+<% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
+    echo "cert_pem and private_key_pem are available and will be used."
+    export CERT_PEM_AVAILABLE=true
+    export PRIVATE_KEY_PEM_AVAILABLE=true
+<% end.else do %>
+    echo "cert_pem and private_key_pem not found"
+    export CERT_PEM_AVAILABLE=false
+    export PRIVATE_KEY_PEM_AVAILABLE=false
+<% end%>
+
+echo "CERT_PEM_AVAILABLE = $CERT_PEM_AVAILABLE"
+echo "PRIVATE_KEY_PEM_AVAILABLE = $PRIVATE_KEY_PEM_AVAILABLE"
+
+echo "------------------------ MISC --------------------------------"
+echo
+
+echo "raw_properties=<%= raw_properties %>"
+
+echo
+echo "-------------------------------------------------------------"

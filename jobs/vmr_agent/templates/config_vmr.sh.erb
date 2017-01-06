@@ -1,0 +1,105 @@
+#!/bin/bash
+
+source /var/vcap/jobs/vmr_agent/helpers/ctl_params.sh
+
+function setupTls {
+
+  <% if_p("cert_pem","private_key_pem") do |cert_pem,private_key_pem| %>
+    # Install the server certificate on this VMR
+    echo "Installing Server Certificate on ${SPEC_ADDRESS}:${SSH_PORT}..."
+    sudo SSHPASS="$FILEUSER_PWD" sshpass -e scp -P $SSH_PORT /var/vcap/jobs/vmr_agent/config/server.pem fileuser@$SPEC_ADDRESS:/certs
+    ./rs-config-server-cert --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT certificate="server.pem"
+    sudo SSHPASS="$FILEUSER_PWD" sshpass -e scp -P $SSH_PORT /var/vcap/jobs/vmr_agent/config/server.pem fileuser@$SPEC_ADDRESS:/certs
+    echo "rm certs/server.pem" | sudo SSHPASS="$FILEUSER_PWD" sshpass -e sftp -P 2222 fileuser@$SPEC_ADDRESS
+    echo "Done."
+  <% end.else do %>
+    echo "Disabling Server Certificate on ${SPEC_ADDRESS}:${SSH_PORT}..."
+    ./rs-config-rm-server-cert --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT
+    echo "Done."
+  <% end%>
+
+}
+
+function configureVMR {
+
+  echo "Checking if VMR was configured, looking for MessageVpn v001"
+
+  echo "curl -sL -X GET -w '%{http_code}' -d '<rpc semp-version="soltr/7_1_1"><show><message-vpn><vpn-name>v001</vpn-name><service></service></message-vpn></show></rpc>' -u $ADMIN_USER:$ADMIN_PASSWORD "http://$SPEC_ADDRESS:$SEMP_PORT/SEMP" -o show-message-vpn.txt"
+
+
+  RES=`curl -sL -X GET -w "%{http_code}" -d '<rpc semp-version="soltr/7_1_1"><show><message-vpn><vpn-name>v001</vpn-name><service></service></message-vpn></show></rpc>' -u $ADMIN_USER:$ADMIN_PASSWORD "http://$SPEC_ADDRESS:$SEMP_PORT/SEMP" -o show-message-vpn.txt`
+
+  VPN_FOUND_COUNT=0
+
+  if [ "$RES" -eq "200" ]; then
+    echo "VMR MessageVPN v001: "
+    cat show-message-vpn.txt
+    VPN_FOUND_COUNT=`cat show-message-vpn.txt | grep v001 | wc -l`
+    echo "MessageVpn v001 found count: $VPN_FOUND_COUNT"
+  fi
+
+  if [ "$VPN_FOUND_COUNT" -eq "0" ]; then
+     echo "Configuring a ${CURRENT_POOL_NAME} VMR: ${SPEC_ADDRESS}:${SSH_PORT}..."
+     ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT poolName=$POOL_NAME portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+  else
+
+    echo "Updating configuration for host $SPEC_ADDRESS"
+    ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT poolName=$POOL_NAME portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+
+  fi
+
+ echo "configureVMR Done."
+
+}
+
+function waitOnVMRStartup() {
+
+TIMEOUT=600
+
+echo "Waiting for VMR to be available... TIMEOUT: $TIMEOUT seconds"
+# Wait until VMR responses to SEMP
+RESULT=0
+while [ $RESULT -eq 0 ]
+do
+  echo "curl -sL -X GET -w '%{http_code}' -d '<rpc semp-version="soltr/7_1_1"><show><service></service></show></rpc>' -u $ADMIN_USER:$ADMIN_PASSWORD "http://$SPEC_ADDRESS:$SEMP_PORT/SEMP" -o sempresponse.txt"
+
+  RES=`curl -sL -X GET -w "%{http_code}" -d '<rpc semp-version="soltr/7_1_1"><show><service></service></show></rpc>' -u $ADMIN_USER:$ADMIN_PASSWORD "http://$SPEC_ADDRESS:$SEMP_PORT/SEMP" -o sempresponse.txt`
+  if [ $RES -eq "200" ]; then
+    echo "VMR SEMP is UP.  VMR Service State: "
+    cat sempresponse.txt
+    echo ""
+    RESULT=1
+  else
+    TIMEOUT=$((TIMEOUT-10))
+    if [ $TIMEOUT -lt 0 ]; then
+      echo "FATAL: Timed out while waiting for VMR SEMP to start."
+      exit 1
+    else
+      echo "VMR SEMP still DOWN, HTTP Response Code: $RES.  Will retry in 10 seconds."
+    fi
+    sleep 10
+  fi
+done
+
+}
+
+function initialSetup() {
+
+sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass ruby
+
+cd /var/vcap/packages/vmr_config_scripts/src/vmr_config_scripts 
+
+export PATH=`pwd`:$PATH
+export HOME=`pwd`
+
+}
+
+#set -e
+set -x
+initialSetup
+
+waitOnVMRStartup
+configureVMR 
+setupTls
+
+exit 0

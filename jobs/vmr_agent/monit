@@ -1,5 +1,5 @@
 check process vmr_agent
   with pidfile /var/vcap/sys/run/vmr_agent/vmr_agent.pid
-  start program "/var/vcap/jobs/vmr_agent/bin/monit_debugger vmr_agent_ctl '/var/vcap/jobs/vmr_agent/bin/vmr_agent_ctl start'"
+  start program "/var/vcap/jobs/vmr_agent/bin/monit_debugger vmr_agent_ctl '/var/vcap/jobs/vmr_agent/bin/vmr_agent_ctl start'" with timeout 60 seconds
   stop program "/var/vcap/jobs/vmr_agent/bin/monit_debugger vmr_agent_ctl '/var/vcap/jobs/vmr_agent/bin/vmr_agent_ctl stop'"
   group vcap

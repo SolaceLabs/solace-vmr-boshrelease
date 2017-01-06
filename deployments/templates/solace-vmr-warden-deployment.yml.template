@@ -1,4 +1,4 @@
-name: solace-vmr-warden-deployment
+name: __DEPLOYMENT_NAME__
 director_uuid: <%= `bosh status --uuid` %>
 
 releases:
@@ -48,7 +48,7 @@ networks:
       name: random
 
 jobs:
-- name: community-vmr-job
+- name: __VMR_JOB_NAME__
   templates:
   -  {name: docker, release: docker}
   -  {name: prepare_vmr, release: solace-vmr}
@@ -62,7 +62,7 @@ jobs:
     static_ips:
       - 10.244.0.3
   properties:
-    pool_name: 'Community-VMR'
+    pool_name: '__POOL_NAME__'
     vmr_agent_port: 18080
     starting_port: 7000
     broker_user: 'solacedemo'
@@ -76,7 +76,7 @@ jobs:
       - name: solace
         image: solace-bosh
         dockerfile: |
-          FROM solace-app:latest-community
+          FROM solace-app:__SOLACE_DOCKER_IMAGE__
 
           RUN \
             echo 'admin' | passwd --stdin admin && \
@@ -100,24 +100,3 @@ jobs:
         - /var/vcap/store/prepare_vmr/volumes/adbBackup:/usr/sw/adb
         - /var/vcap/store/prepare_vmr/volumes/adb:/usr/sw/internalSpool/softAdb
         - /dev/shm:/dev/shm
-- name: vmr-config-job
-  templates:
-  -  {name: config_vmr, release: solace-vmr}
-  lifecycle: errand
-  instances: 1
-  resource_pool: common-resource-pool
-  networks:
-  - name: test-network
-    static_ips:
-      - 10.244.0.2
-  properties:
-    starting_port: 7000
-    broker_user: 'solacedemo'
-    broker_password: 'solacedemo'
-    broker_hostname: 'solace-messaging.local.pcfdev.io'
-    admin_password: 'admin'
-    admin_user: 'admin'
-    semp_port: 8080
-    ssh_port: 2222
-    community_vmr_list:
-      - 10.244.0.3

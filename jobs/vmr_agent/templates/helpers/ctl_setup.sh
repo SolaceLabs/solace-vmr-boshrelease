@@ -44,5 +44,6 @@ do
 done
 export TMPDIR=$TMP_DIR
 
-
 export PIDFILE=$RUN_DIR/$JOB_NAME.pid
+
+source $JOB_DIR/helpers/ctl_params.sh

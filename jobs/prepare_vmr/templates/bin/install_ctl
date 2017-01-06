@@ -3,7 +3,7 @@
 set -e # exit immediately if a simple command exits with a non-zero status
 set -u # report the usage of uninitialized variables
 
-# Setup env vars and folders for the webapp_ctl script
+# Setup env vars and folders for the script
 source /var/vcap/jobs/prepare_vmr/helpers/ctl_setup.sh 'prepare_vmr'
 
 JQ=/var/vcap/packages/jq/jq
@@ -11,6 +11,8 @@ JQ=/var/vcap/packages/jq/jq
 export PORT=${PORT:-5000}
 export LANG=en_US.UTF-8
 export DOCKER_HOST=unix:///var/vcap/sys/run/docker/docker.sock
+
+SOLACE_IMAGES_TGZ="/var/vcap/packages/vmr_image/solace-vmr-images.tgz"
 
 case $1 in
 
@@ -34,11 +36,11 @@ case $1 in
     fi
 
     time docker \
-      load -i /var/vcap/packages/vmr_image/soltr-docker.tgz
+      load -i $SOLACE_IMAGES_TGZ
         >>$LOG_DIR/$JOB_NAME.stdout.log \
         2>>$LOG_DIR/$JOB_NAME.stderr.log
 
-    tar zxf /var/vcap/packages/vmr_image/soltr-docker.tgz manifest.json
+    tar zxf $SOLACE_IMAGES_TGZ manifest.json
     while read IMAGE
     do
         echo "Installing $IMAGE."

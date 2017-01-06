@@ -1,11 +1,13 @@
 ---
 name: vmr_agent
-packages: [java, vmr_agent]
+packages: [vmr_config_scripts]
 templates:
-  vmr_agent_ctl.sh.erb: bin/vmr_agent_ctl
   bin/monit_debugger: bin/monit_debugger
+  vmr_agent_ctl.sh.erb: bin/vmr_agent_ctl
+  config_vmr.sh.erb: bin/config_vmr.sh
   helpers/ctl_setup.sh: helpers/ctl_setup.sh
   helpers/ctl_utils.sh: helpers/ctl_utils.sh
+  helpers/ctl_params.sh.erb : helpers/ctl_params.sh
   server.pem.erb: config/server.pem
   cert.pem.erb: config/cert.pem
   private_key.pem.erb: config/private_key.pem

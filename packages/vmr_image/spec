@@ -1,4 +1,4 @@
 ---
 name: vmr_image
 dependencies: []
-files: [soltr_docker/soltr-docker.tgz]
+files: [vmr_image/solace-vmr-images.tgz]
