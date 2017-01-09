@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export SCRIPT=$(readlink -f "$0")
+SCRIPT=`perl -e 'use Cwd "abs_path";print abs_path(shift)' $0`
 export SCRIPTPATH=$(dirname "$SCRIPT")
 
 export LOG_FILE="runit.log"
@@ -24,16 +24,6 @@ if [ "$VM_FOUND_COUNT" -eq "1" ]; then
 fi
 
 echo "You can see build and deployment logs in $LOG_FILE"
-
-echo "Checking to see if the vmr-agent has been built..."
-ls ../vmr-agent/build/libs/vmr-agent-*.jar
-
-if [ $? -ne 0 ]; then
-   echo "No vmr-agent jar file found, will build it."
-   cd ../vmr-agent
-   ./gradlew assemble
-   cd -
-fi
 
 build
 

@@ -40,11 +40,11 @@ function configureVMR {
 
   if [ "$VPN_FOUND_COUNT" -eq "0" ]; then
      echo "Configuring a ${CURRENT_POOL_NAME} VMR: ${SPEC_ADDRESS}:${SSH_PORT}..."
-     ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT poolName=$POOL_NAME portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+     ./rs-config-vmr-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT shared=no portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
   else
 
     echo "Updating configuration for host $SPEC_ADDRESS"
-    ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT poolName=$POOL_NAME portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
+    ./rs-update-config-for-maas --cli-username $ADMIN_USER --cli-password "$ADMIN_PASSWORD" $SPEC_ADDRESS:$SSH_PORT shared=no portSeed=$STARTING_PORT fileUserPass=$FILEUSER_PWD adminPass=$ADMIN_PASSWORD
 
   fi
 
@@ -87,7 +87,7 @@ function initialSetup() {
 
 sudo apt-get install -y libexpect-perl libterm-readkey-perl sshpass ruby
 
-cd /var/vcap/packages/vmr_config_scripts/src/vmr_config_scripts 
+cd /var/vcap/packages/vmr_config_scripts
 
 export PATH=`pwd`:$PATH
 export HOME=`pwd`

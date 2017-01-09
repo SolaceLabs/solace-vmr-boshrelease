@@ -4,8 +4,8 @@ export DEPLOYMENT_NAME=${DEPLOYMENT_NAME:-"solace-vmr-warden-deployment"}
 export TEMPLATE_PREFIX=${TEMPLATE_PREFIX:-"solace-vmr-warden-deployment"}
 export LOG_FILE=${LOG_FILE:-"runit.log"}
 
-export SOLACE_DOCKER_BOSH_VERSION="29-solace-2"
-export SOLACE_DOCKER_BOSH=${SOLACE_DOCKER_BOSH:-"/home/public/RND/loads/cloud-integration/docker-boshrelease/docker-${SOLACE_DOCKER_BOSH_VERSION}.tgz"}
+export DOCKER_BOSH_VERSION='28.0.2'
+export DOCKER_BOSH_URL="https://bosh.io/d/github.com/cf-platform-eng/docker-boshrelease?v="
 
 export STEMCELL_VERSION="3312.7"
 export STEMCELL_NAME="bosh-stemcell-$STEMCELL_VERSION-warden-boshlite-ubuntu-trusty-go_agent.tgz"
@@ -22,22 +22,21 @@ function prepareBosh() {
 
   targetBosh
 
-  FOUND_DOCKER_RELEASE=`bosh releases | grep "docker" | grep $SOLACE_DOCKER_BOSH_VERSION | wc -l`
+  FOUND_DOCKER_RELEASE=`bosh releases | grep "docker" | grep $DOCKER_BOSH_VERSION | wc -l`
   if [ "$FOUND_DOCKER_RELEASE" -eq "0" ]; then
      echo "Uploading docker bosh"
-     bosh upload release $SOLACE_DOCKER_BOSH
+     bosh upload release ${DOCKER_BOSH_URL}${DOCKER_BOSH_VERSION}
   else
-     echo "$SOLACE_DOCKER_BOSH was found $FOUND_DOCKER_RELEASE"
+     echo "Docker Bosh release was found: $FOUND_DOCKER_RELEASE"
   fi
 
   echo "Uploading stemcell"
 
-  if [ ! -f /tmp/$STEMCELL_NAME ]; then
-      wget -O /tmp/$STEMCELL_NAME $STEMCELL_URL
-  fi
-
   FOUND_STEMCELL=`bosh stemcells | grep bosh-warden-boshlite-ubuntu-trusty-go_agent | grep $STEMCELL_VERSION | wc -l`
   if [ "$FOUND_STEMCELL" -eq "0" ]; then
+     if [ ! -f /tmp/$STEMCELL_NAME ]; then
+       wget -O /tmp/$STEMCELL_NAME $STEMCELL_URL
+     fi
      bosh upload stemcell /tmp/$STEMCELL_NAME
   else
      echo "$STEMCELL_NAME was found $FOUND_STEMCELL"
@@ -128,11 +127,12 @@ echo "Preparing manifest file $MANIFEST_FILE"
 ## __POOL_NAME__
 ## __SOLACE_DOCKER_IMAGE__
 
-sed -i "s/__DEPLOYMENT_NAME__/$DEPLOYMENT_NAME/g" $MANIFEST_FILE
-sed -i "s/__VMR_JOB_NAME__/$VMR_JOB_NAME/g" $MANIFEST_FILE
-sed -i "s/__POOL_NAME__/$POOL_NAME/g" $MANIFEST_FILE
-sed -i "s/__SOLACE_DOCKER_IMAGE__/$SOLACE_DOCKER_IMAGE/g" $MANIFEST_FILE
-
+sed -i.bak "s/__DEPLOYMENT_NAME__/$DEPLOYMENT_NAME/g" $MANIFEST_FILE
+sed -i.bak "s/__VMR_JOB_NAME__/$VMR_JOB_NAME/g" $MANIFEST_FILE
+sed -i.bak "s/__POOL_NAME__/$POOL_NAME/g" $MANIFEST_FILE
+sed -i.bak "s/__SOLACE_DOCKER_IMAGE__/$SOLACE_DOCKER_IMAGE/g" $MANIFEST_FILE
+rm $MANIFEST_FILE.bak
+echo "$MANIFEST_FILE"
 }
 
 function build() {
@@ -163,7 +163,7 @@ if [ -f $RELEASE_FILE ]; then
 
  bosh deployment $MANIFEST_FILE >> $LOG_FILE
 
- echo "Will deploy VMR with name $VMR_JOB_NAME , having POOL_NAME: $POOL_NAME, and using $SOLACE_DOCKER_IMAGE"
+ echo "Will deploy VMR with name $VMR_JOB_NAME , and using $SOLACE_DOCKER_IMAGE"
 
  echo "yes" | bosh deploy >> $LOG_FILE
 
@@ -179,9 +179,9 @@ fi
 ###################### Common parameter processing ########################
 
 if [ -z $1 ]; then
-   export POOL_NAME=${POOL_NAME:-"Medium-VMR"}
+   export EDITION_NAME=${EDITION_NAME:-"community"}
 else
-   export POOL_NAME=$1
+   export EDITION_NAME=$1
 fi
 
 if [ -z $2 ]; then
@@ -190,28 +190,28 @@ else
    export TEMPLATE_POSTFIX=$2
 fi
 
-export VMR_JOB_NAME=${VMR_JOB_NAME:-$POOL_NAME}
+export VMR_JOB_NAME=${VMR_JOB_NAME:-"VMR"}
 export VM_JOB=${VM_JOB:-"$VMR_JOB_NAME/0"}
 
-case $POOL_NAME in
+case $EDITION_NAME in
 
-  Medium-VMR)
-	export SOLACE_DOCKER_IMAGE="latest-evaluation"
-    ;;
-
-  Large-VMR)
-	export SOLACE_DOCKER_IMAGE="latest-evaluation"
-    ;;
-
-  Community-VMR)
+  community)
 	export SOLACE_DOCKER_IMAGE="latest-community"
+    ;;
+
+  enterprise)
+	export SOLACE_DOCKER_IMAGE="latest-enterprise"
+    ;;
+
+  evaluation)
+	export SOLACE_DOCKER_IMAGE="latest-evaluation"
     ;;
 
   *)
     echo
-    echo "Sorry, I don't seem to know about POOL_NAME: $POOL_NAME"
+    echo "Sorry, I don't seem to know about EDITION_NAME: $EDITION_NAME"
     echo
-    echo "Usage: $0 [Medium-VMR|Large-VMR|Community-VMR] [-cert]"
+    echo "Usage: $0 [community|enterprise|evaluation] [-cert]"
     echo 
     exit 1
     ;;

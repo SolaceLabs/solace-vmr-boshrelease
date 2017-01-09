@@ -1,6 +1,6 @@
 ---
 name: vmr_agent
-packages: [vmr_config_scripts]
+packages: [vmr_config_scripts, helpers]
 templates:
   bin/monit_debugger: bin/monit_debugger
   vmr_agent_ctl.sh.erb: bin/vmr_agent_ctl

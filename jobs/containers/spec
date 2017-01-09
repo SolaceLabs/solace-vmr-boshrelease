@@ -2,7 +2,7 @@
 name: containers
 
 packages:
-  - bosh-helpers
+  - helpers
 
 templates:
   bin/containers_ctl.erb: bin/containers_ctl

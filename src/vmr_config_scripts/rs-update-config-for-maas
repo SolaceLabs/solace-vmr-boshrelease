@@ -3,10 +3,11 @@
 #  Configure MQTT for the router
 #
 <%args>
-poolName       => "Medium-VMR" # The VMR pool name.  Either "Medium-VMR" "Large-VMR" or "Community-VMR"
-portSeed   => 7000     # A seed port where Solace services will begin port allocation.
+# Shared VMRs allows 5 tenants to be sharing the same VMRs yet each tenant will be isolated in their own VPNs.
+shared       => "no"    # Whether the VMR will be shared.  "no" : Only one VPN will be configured - "yes" : Five VPN will be configured
+portSeed     => 7000     # A seed port where Solace services will begin port allocation.
 fileUserPass => "u4EANiNxwS6C"
-adminPass => "u4EANiNxwS6C"
+adminPass    => "u4EANiNxwS6C"
 </%args>
 
 <%script type = "cli">
@@ -28,17 +29,13 @@ change-password <% $adminPass %>
 end
 
 %my $countVpns;
-%if ($poolName eq "Medium-VMR")
+%if ($shared eq "no")
+%{
+%   $countVpns = 1;
+%}
+%if ($shared eq "yes")
 %{
 %   $countVpns = 5;
-%}
-%if ($poolName eq "Large-VMR")
-%{
-%   $countVpns = 1;
-%}
-%if ($poolName eq "Community-VMR")
-%{
-%   $countVpns = 1;
 %}
 
     home

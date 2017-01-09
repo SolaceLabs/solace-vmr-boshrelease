@@ -5,7 +5,7 @@ set -e # exit immediately if a simple command exits with a non-zero status
 container_name=$2
 
 # Setup common env vars and folders
-source /var/vcap/packages/bosh-helpers/ctl_setup.sh 'containers' "${container_name}"
+source /var/vcap/packages/helpers/ctl_setup.sh 'containers' "${container_name}"
 export CONTAINER_PID_FILE=${CONTAINERS_PID_DIR}/${container_name}.pid
 
 case $1 in

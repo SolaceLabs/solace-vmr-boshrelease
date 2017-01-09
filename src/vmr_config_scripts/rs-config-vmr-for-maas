@@ -3,7 +3,8 @@
 #  Configure MQTT for the router
 #
 <%args>
-poolName   => "Medium-VMR" # The VMR pool name.  Either "Medium-VMR" "Large-VMR" or "Community-VMR"
+# Shared VMRs allows 5 tenants to be sharing the same VMRs yet each tenant will be isolated in their own VPNs.
+shared       => "no"    # Whether the VMR will be shared.  "no" : Only one VPN will be configured - "yes" : Five VPN will be configured
 portSeed   => 7000     # A seed port where Solace services will begin port allocation.
 fileUserPass => "u4EANiNxwS6C"
 adminPass => "u4EANiNxwS6C"
@@ -39,30 +40,18 @@ end
 %my $maxTransactedSessions;
 %my $maxEndpoints;
 
-%if ($poolName eq "Medium-VMR")
+%my $countVpns;
+%if ($shared eq "no")
 %{
-%   $maxConnections = 200;
-%   $maxSubscriptions = 100000;
-%   $countClientUsernames = 100;
-%   $countVpns = 5;
-%   $maxSpoolUsage = 4000;
-%   $maxTransactedSessions = 200;
-%   $maxTransactions = 1000;
-%   $maxEndpoints = 200;
-%}
-%if ($poolName eq "Large-VMR")
-%{
-%   $maxConnections = 1000;
-%   $maxSubscriptions = 500000;
-%   $countClientUsernames = 500;
 %   $countVpns = 1;
-%   $maxSpoolUsage = 20000;
-%   $maxTransactedSessions = 1000;
-%   $maxTransactions = 5000;
-%   $maxEndpoints = 1000;
 %}
-%if ($poolName eq "Community-VMR")
+%if ($shared eq "yes")
 %{
+%   $countVpns = 5;
+%}
+
+#   NOTE: These are community edition settings.  Most of the settings here can beyond these values when using the
+#         enterprise edition or its evaluation version.
 %   $maxConnections = 100;
 %   $maxSubscriptions = 500000;
 %   $countClientUsernames = 98;
@@ -71,7 +60,16 @@ end
 %   $maxTransactedSessions = 100;
 %   $maxTransactions = 500;
 %   $maxEndpoints = 100;
-%}
+
+# For reference: are the maxed out settings for an Enterprise (Or Evaluation) VMR :
+#%   $maxConnections = 1000;
+#%   $maxSubscriptions = 500000;
+#%   $countClientUsernames = 500;
+#%   $countVpns = 1;
+#%   $maxSpoolUsage = 20000;
+#%   $maxTransactedSessions = 1000;
+#%   $maxTransactions = 5000;
+#%   $maxEndpoints = 1000;
 
     home
     enable

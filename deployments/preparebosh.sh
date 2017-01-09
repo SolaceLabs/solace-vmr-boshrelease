@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export SCRIPT=$(readlink -f "$0")
+SCRIPT=`perl -e 'use Cwd "abs_path";print abs_path(shift)' $0`
 export SCRIPTPATH=$(dirname "$SCRIPT")
 
 export LOG_FILE="prepareBosh.log"
