@@ -64,11 +64,11 @@ jobs:
   properties:
     pool_name: '__POOL_NAME__'
     vmr_agent_port: 18080
-    starting_port: 7000
+    starting_port: __STARTING_PORT__
     broker_user: 'solacedemo'
     broker_password: 'solacedemo'
     broker_hostname: 'solace-messaging.local.pcfdev.io'
-    admin_password: 'admin'
+    admin_password: '__ADMIN_PASSWORD__'
     admin_user: 'admin'
     semp_port: 8080
     ssh_port: 2222
@@ -81,9 +81,9 @@ jobs:
           FROM solace-app:__SOLACE_DOCKER_IMAGE__
 
           RUN \
-            echo 'admin' | passwd --stdin admin && \
-            echo 'support' | passwd --stdin support && \
-            echo 'solace1' | passwd --stdin root && \
+            echo '__ADMIN_PASSWORD__' | passwd --stdin admin && \
+            echo '__SUPPORT_PASSWORD__' | passwd --stdin support && \
+            echo '__ROOT_PASSWORD__' | passwd --stdin root && \
             echo '#!/bin/bash' > /sbin/dhclient && \
             echo 'exec tail -f /dev/null' >> /sbin/dhclient && \
             echo '3a:40:d5:42:f4:86' > /usr/sw/.nodeIdentifyingMacAddr && \

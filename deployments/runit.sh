@@ -9,6 +9,7 @@ source $SCRIPTPATH/common.sh
 
 cd $SCRIPTPATH/..
 
+promptSettings
 prepareManifest
 
 VM_FOUND_COUNT=`bosh vms | grep $VM_JOB | wc -l`
