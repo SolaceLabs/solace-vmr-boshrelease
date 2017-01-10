@@ -47,7 +47,6 @@ function bump_version_dev()
   else
     dev_build_number="1"
   fi
-  echo "Saving: $major.$minor.$patch-$build_number+$USER.$((dev_build_number+1))"
 
   echo "$major.$minor.$patch-$build_number+$USER.$((dev_build_number+1))" > userVersion
 }
