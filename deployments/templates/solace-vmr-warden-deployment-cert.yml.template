@@ -93,6 +93,7 @@ jobs:
          - "SSHD_PORT=2222"
          - "ALWAYS_DIE_ON_FAILURE=1"
         net: host
+        shm_size: 2G
         privileged: true
         uts: host
         volumes:
@@ -101,4 +102,3 @@ jobs:
         - /var/vcap/store/prepare_vmr/volumes/internalSpool:/usr/sw/internalSpool
         - /var/vcap/store/prepare_vmr/volumes/adbBackup:/usr/sw/adb
         - /var/vcap/store/prepare_vmr/volumes/adb:/usr/sw/internalSpool/softAdb
-        - /dev/shm:/dev/shm
