@@ -2,14 +2,6 @@
 
 A BOSH release for the Solace Virtual Message Router (VMR).
 
-## Components
-
-| Component      | Description |
-| --- | --- |
-| containers     | Create the VMR Container |
-| prepare_vmr    | Loads the VMR Docker images in the target host's docker registry |
-| vmr_agent      | Configures the VMR into its initial state after creation |
-
 ## How to build
 
 ### Prerequisites 
