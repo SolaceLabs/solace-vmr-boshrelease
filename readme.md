@@ -89,7 +89,7 @@ v001                             Up              5        0        5       1
 ## Deployment Manifest Explanation
 
 The deployment manifest needs to provide the following :
-* A reference to [docker boshrelease|https://github.com/cloudfoundry-community/docker-boshrelease] (At least v28)
+* A reference to [docker boshrelease](https://github.com/cloudfoundry-community/docker-boshrelease) (At least v28)
 * Must provide one static IP address to each VMR job instance.
 * Must provide at least 20Gig of persistent disk size to each VMR job instance.
 * Must provide the containers properties required to create the container (See deployments templates).
