@@ -14,10 +14,10 @@ Solace.
 Follow these steps in order to build a Bosh Release for the Solace VMR:
 
 ```
-git clone https://github.com/SolaceDev/solace-vmr-boshrelease.git
+git clone https://github.com/SolaceLabs/solace-vmr-boshrelease
 cd solace-vmr-boshrelease
 # Copy the docker image provided by solace into the vmr_images directory
-cp /path/to/vmr-image/soltr-7.2.0.20-vmr-community-docker.tar.gz vmr_images/
+cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
 ./prepare.sh
 ./build.sh
 ```
@@ -30,10 +30,10 @@ Assuming that you already have a Bosh-Lite Vagrant VM up and running at IP 192.1
 to build, and deploy the Bosh Release for you :
 
 ```
-git clone https://github.com/SolaceDev/solace-vmr-boshrelease.git
+git clone https://github.com/SolaceLabs/solace-vmr-boshrelease
 cd solace-vmr-boshrelease
 # Copy the docker image provided by solace into the vmr_images directory
-cp /path/to/vmr-image/soltr-7.2.0.20-vmr-community-docker.tar.gz vmr_images/
+cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
 ./prepare.sh
 cd deployments
 ./runit.sh
