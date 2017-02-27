@@ -91,6 +91,7 @@ jobs:
         env_vars:
          - "NODE_TYPE=MESSAGE_ROUTING_NODE"
          - "SSHD_PORT=2222"
+         - "SERVICE_SSH_PORT=2222"
          - "ALWAYS_DIE_ON_FAILURE=1"
         net: host
         shm_size: 2G
