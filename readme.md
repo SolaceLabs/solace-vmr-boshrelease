@@ -9,6 +9,8 @@ A BOSH release for the Solace Virtual Message Router (VMR).
 Before building the Bosh Release you will need the VMR Docker images.  These docker images will be provided to you by
 Solace.
 
+Docker Image must be version 8.2 or more recent to work with this Bosh Release.
+
 ### Build Procedure
 
 Follow these steps in order to build a Bosh Release for the Solace VMR:
@@ -23,6 +25,15 @@ cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
 ```
 
 Bosh will have created a tarball that contains the Bosh Release with the VMR packaged within.
+
+NOTE: If you want to launch a newer version of the VMR after you execute these steps, then you will need to erase the
+content of vmr_images/, and these repeat these steps :
+```
+# Copy the docker image provided by solace into the vmr_images directory
+cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
+./prepare.sh
+./build.sh
+```
 
 ## Deployment on Bosh-List 
 
@@ -41,7 +52,7 @@ cd deployments
 
 At this point you will have a VMR instance up and running in Bosh-Lite with this IP : 10.244.0.3
 
-This IP is not routables from the Vagrant host by default.  You can easily make it routable :
+This IP is not routable from the Vagrant host by default.  You can easily make it routable :
  
 On Mac OS host :
 ```
