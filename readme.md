@@ -14,10 +14,10 @@ Solace.
 Follow these steps in order to build a Bosh Release for the Solace VMR:
 
 ```
-git clone https://github.com/SolaceDev/solace-vmr-boshrelease.git
+git clone https://github.com/SolaceLabs/solace-vmr-boshrelease
 cd solace-vmr-boshrelease
 # Copy the docker image provided by solace into the vmr_images directory
-cp /path/to/vmr-image/soltr-7.2.0.20-vmr-community-docker.tar.gz vmr_images/
+cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
 ./prepare.sh
 ./build.sh
 ```
@@ -30,10 +30,10 @@ Assuming that you already have a Bosh-Lite Vagrant VM up and running at IP 192.1
 to build, and deploy the Bosh Release for you :
 
 ```
-git clone https://github.com/SolaceDev/solace-vmr-boshrelease.git
+git clone https://github.com/SolaceLabs/solace-vmr-boshrelease
 cd solace-vmr-boshrelease
 # Copy the docker image provided by solace into the vmr_images directory
-cp /path/to/vmr-image/soltr-7.2.0.20-vmr-community-docker.tar.gz vmr_images/
+cp /path/to/vmr-image/soltr-<version>-vmr-community-docker.tar.gz vmr_images/
 ./prepare.sh
 cd deployments
 ./runit.sh
@@ -89,7 +89,7 @@ v001                             Up              5        0        5       1
 ## Deployment Manifest Explanation
 
 The deployment manifest needs to provide the following :
-* A reference to [docker boshrelease|https://github.com/cloudfoundry-community/docker-boshrelease] (At least v28)
+* A reference to [docker boshrelease](https://github.com/cloudfoundry-community/docker-boshrelease) (At least v28)
 * Must provide one static IP address to each VMR job instance.
 * Must provide at least 20Gig of persistent disk size to each VMR job instance.
 * Must provide the containers properties required to create the container (See deployments templates).
@@ -105,3 +105,34 @@ The deployment manifest needs to provide the following :
 | ssh_port        | No | The Port the VMR will listen onto for direct ssh access to the VMR's CLI |
 | cert_pem        | Yes | Base64 string of a DER encoded server certificate to install on the VMR |
 | private_key_pem | Yes | Base64 string of a DER encoded private key that matches the server certificate in cert_pem |
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
+
+## Release Notes and Versioning
+
+This project uses [SemVer](http://semver.org/) for versioning. For the versions available and corresponding release notes, see the [Releases in this repository](https://github.com/SolaceLabs/sl-solace-messaging-service-info/releases). 
+
+## Authors
+
+See the list of [contributors](https://github.com/SolaceLabs/solace-vmr-boshrelease/contributors) who participated in this project.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0. - See the [LICENSE](LICENSE) file for details.
+
+## Resources
+
+For more information about Bosh, Cloud Foundry and the Solace Messaging service these resources:
+- [Solace Messaging for Pivotal Cloud Foundry](http://docs.pivotal.io/solace-messaging/)
+- [Cloud Foundry Documentation](http://docs.cloudfoundry.org/)
+- [Bosh Documentation](http://bosh.io/docs)
+- For an introduction to Cloud Foundry: https://www.cloudfoundry.org/
+- For an introduction to Bosh : http://mariash.github.io/learn-bosh/
+
+For more information about Solace technology in general please visit these resources:
+
+- The Solace Developer Portal website at: http://dev.solacesystems.com
+- Understanding [Solace technology.](http://dev.solacesystems.com/tech/)
+- Ask the [Solace community](http://dev.solacesystems.com/community/).
