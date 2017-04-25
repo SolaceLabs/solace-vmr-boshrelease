@@ -132,8 +132,6 @@ sed -i.bak "s/__VMR_JOB_NAME__/$VMR_JOB_NAME/g" $MANIFEST_FILE
 sed -i.bak "s/__POOL_NAME__/$POOL_NAME/g" $MANIFEST_FILE
 sed -i.bak "s/__SOLACE_DOCKER_IMAGE__/$SOLACE_DOCKER_IMAGE/g" $MANIFEST_FILE
 sed -i.bak "s/__ADMIN_PASSWORD__/$ADMIN_PASSWORD/g" $MANIFEST_FILE
-sed -i.bak "s/__SUPPORT_PASSWORD__/$SUPPORT_PASSWORD/g" $MANIFEST_FILE
-sed -i.bak "s/__ROOT_PASSWORD__/$ROOT_PASSWORD/g" $MANIFEST_FILE
 sed -i.bak "s/__STARTING_PORT__/$STARTING_PORT/g" $MANIFEST_FILE
 rm $MANIFEST_FILE.bak
 echo "$MANIFEST_FILE"
@@ -183,20 +181,40 @@ function prompt() {
     export $2=${value:-"$3"}
 }
 
+function pickEdition() {
+    ENTERPRISE_FOUND=0
+    COMMUNITY_FOUND=0
+    EDITION_NAME=""
+    if test -n "$(find ../vmr_images -maxdepth 1 -name '*community*' -print -quit)"
+    then
+      COMMUNITY_FOUND=1
+      EDITION_NAME="community"
+      echo "Found a community edition VMR docker image in vmr_images."
+    fi
+    if test -n "$(find ../vmr_images -maxdepth 1 -name '*enterprise*' -print -quit)"
+    then
+      ENTERPRISE_FOUND=1
+      EDITION_NAME="enterprise"
+      echo "Found an enterprise edition VMR docker image in vmr_images."
+    fi
+
+    if [ -z "$EDITION_NAME" ]
+    then
+        echo "ERROR: Couldn't find a supported docker images in vmr_images."
+        exit 1
+    fi
+
+    echo "Will use the $EDITION_NAME docker image."
+}
+
 function promptSettings() {
     prompt "Choose the password for the admin user" ADMIN_PASSWORD admin
-    prompt "Choose the password for the support user" SUPPORT_PASSWORD support
-    prompt "Choose the password for the root user" ROOT_PASSWORD solace1
     prompt "Choose the starting port for the VMR service port range" STARTING_PORT 7000
 }
 
 ###################### Common parameter processing ########################
 
-if [ -z $1 ]; then
-   export EDITION_NAME=${EDITION_NAME:-"community"}
-else
-   export EDITION_NAME=$1
-fi
+pickEdition
 
 if [ -z $2 ]; then
    export TEMPLATE_POSTFIX=""
@@ -208,8 +226,6 @@ export VMR_JOB_NAME=${VMR_JOB_NAME:-"VMR"}
 export VM_JOB=${VM_JOB:-"$VMR_JOB_NAME/0"}
 
 export ADMIN_PASSWORD=${ADMIN_PASSWORD:-"admin"}
-export SUPPORT_PASSWORD=${SUPPORT_PASSWORD:-"support"}
-export ROOT_PASSWORD=${ROOT_PASSWORD:-"solace1"}
 export STARTING_PORT=${STARTING_PORT:-"7000"}
 
 case $EDITION_NAME in
